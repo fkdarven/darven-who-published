@@ -34,30 +34,30 @@ use Darven\WhoPublished\Publisher\PublisherTracker;
  */
 class Starter {
 
-    /**
-     * Bootstraps the plugin by calling the setup process.
-     *
-     * @return void
-     * @since 1.0.0
-     */
-    public function start() {
-        $this->setup();
-    }
+	/**
+	 * Bootstraps the plugin by calling the setup process.
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	public function start() {
+		$this->setup();
+	}
 
-    /**
-     * Sets up the plugin's components and hooks.
-     *
-     * @return void
-     * @since 1.0.0
-     */
-    public function setup() {
-        RegisterMeta::register();
-        (new PublisherTracker())->init();
+	/**
+	 * Sets up the plugin's components and hooks.
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	public function setup() {
+		RegisterMeta::register();
+		( new PublisherTracker() )->init();
 
-        if ( is_admin() ) {
-            (new ColumnManager())->start();
-            (new MetaBoxDisplay())->register();
-            (new SettingsPage())->start();
-        }
-    }
+		if ( is_admin() ) {
+			( new ColumnManager() )->start();
+			( new MetaBoxDisplay() )->register();
+			( new SettingsPage() )->start();
+		}
+	}
 }

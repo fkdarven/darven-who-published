@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Registers custom post meta fields used by the Who Published plugin.
  *
@@ -29,72 +28,92 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class RegisterMeta {
 
-    /**
-     * Registers custom meta fields for confirmed publishers and legacy estimate status.
-     *
-     * @return void
-     * @since 1.0.0
-     */
-    public static function register(): void {
-        foreach ( [ 'post', 'page' ] as $post_type ) {
-            register_post_meta($post_type, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, [
-                'type'              => 'integer',
-                'single'            => true,
-                'sanitize_callback' => 'absint',
-                'auth_callback'     => function () {
-                    return current_user_can('edit_posts');
-                },
-                'show_in_rest'      => true,
-                'description'       => 'First authenticated publisher of the post',
-            ]);
+	/**
+	 * Registers custom meta fields for confirmed publishers and legacy estimate status.
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	public static function register(): void {
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			register_post_meta(
+				$post_type,
+				DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR,
+				array(
+					'type'              => 'integer',
+					'single'            => true,
+					'sanitize_callback' => 'absint',
+					'auth_callback'     => function () {
+						return current_user_can( 'edit_posts' );
+					},
+					'show_in_rest'      => true,
+					'description'       => 'First authenticated publisher of the post',
+				)
+			);
 
-            register_post_meta($post_type, DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED, [
-                'type'              => 'boolean',
-                'single'            => true,
-                'sanitize_callback' => 'rest_sanitize_boolean',
-                'auth_callback'     => function () {
-                    return current_user_can('edit_posts');
-                },
-                'show_in_rest'      => false,
-                'description'       => 'Whether the first publication was observed',
-            ]);
+			register_post_meta(
+				$post_type,
+				DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED,
+				array(
+					'type'              => 'boolean',
+					'single'            => true,
+					'sanitize_callback' => 'rest_sanitize_boolean',
+					'auth_callback'     => function () {
+						return current_user_can( 'edit_posts' );
+					},
+					'show_in_rest'      => false,
+					'description'       => 'Whether the first publication was observed',
+				)
+			);
 
-            register_post_meta($post_type, '_darven_who_published_estimated_author', [
-                'type'              => 'integer',
-                'single'            => true,
-                'sanitize_callback' => 'absint',
-                'auth_callback'     => function () {
-                    return current_user_can('edit_posts');
-                },
-                'show_in_rest'      => false,
-                'description'       => 'Estimated publisher user ID',
-            ]);
+			register_post_meta(
+				$post_type,
+				'_darven_who_published_estimated_author',
+				array(
+					'type'              => 'integer',
+					'single'            => true,
+					'sanitize_callback' => 'absint',
+					'auth_callback'     => function () {
+						return current_user_can( 'edit_posts' );
+					},
+					'show_in_rest'      => false,
+					'description'       => 'Estimated publisher user ID',
+				)
+			);
 
-            register_post_meta($post_type, '_darven_who_published_estimation_source', [
-                'type'              => 'string',
-                'single'            => true,
-                'sanitize_callback' => function ( $source ) {
-                    $sources = array( 'legacy', 'edit_last', 'latest_revision', 'post_author' );
+			register_post_meta(
+				$post_type,
+				'_darven_who_published_estimation_source',
+				array(
+					'type'              => 'string',
+					'single'            => true,
+					'sanitize_callback' => function ( $source ) {
+						$sources = array( 'legacy', 'edit_last', 'latest_revision', 'post_author' );
 
-                    return in_array( $source, $sources, true ) ? $source : '';
-                },
-                'auth_callback'     => function () {
-                    return current_user_can('edit_posts');
-                },
-                'show_in_rest'      => false,
-                'description'       => 'Estimated publisher evidence source',
-            ]);
-        }
+						return in_array( $source, $sources, true ) ? $source : '';
+					},
+					'auth_callback'     => function () {
+						return current_user_can( 'edit_posts' );
+					},
+					'show_in_rest'      => false,
+					'description'       => 'Estimated publisher evidence source',
+				)
+			);
+		}
 
-        register_post_meta('post', DARVEN_WHO_PUBLISHED_WAS_GUESSED, [
-            'type'              => 'boolean',
-            'single'            => true,
-            'sanitize_callback' => 'rest_sanitize_boolean',
-            'auth_callback'     => function () {
-                return current_user_can('edit_posts');
-            },
-            'show_in_rest'      => false,
-            'description'       => 'Whether legacy publisher data was estimated',
-        ]);
-    }
+		register_post_meta(
+			'post',
+			DARVEN_WHO_PUBLISHED_WAS_GUESSED,
+			array(
+				'type'              => 'boolean',
+				'single'            => true,
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'auth_callback'     => function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'show_in_rest'      => false,
+				'description'       => 'Whether legacy publisher data was estimated',
+			)
+		);
+	}
 }

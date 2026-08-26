@@ -65,6 +65,6 @@ class PublisherRetriever {
 	 * @return string[]
 	 */
 	private function allowed_statuses(): array {
-		return [ 'publish', 'private', 'future' ];
+		return array( 'publish', 'private', 'future' );
 	}
 }

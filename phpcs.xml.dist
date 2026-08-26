@@ -16,6 +16,17 @@
 	<rule ref="WordPress"/>
 	<rule ref="WordPress-Docs"/>
 	<rule ref="WordPress-Extra"/>
+
+	<!--
+		This project intentionally follows PSR-4 class discovery, which requires
+		CamelCase class filenames matching their fully qualified class names.
+	-->
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>/src/</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.Files.FileName.NotHyphenatedLowercase">
+		<exclude-pattern>/src/</exclude-pattern>
+	</rule>
 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<property name="text_domain" type="array">

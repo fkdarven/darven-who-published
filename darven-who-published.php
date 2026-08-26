@@ -21,17 +21,19 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 }
 
 
-define('DARVEN_WHO_PUBLISHED_URL', plugin_dir_url( __FILE__ ));
-define('DARVEN_WHO_PUBLISHED_DIR', dirname(plugin_basename( __FILE__ )));
-const DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR = '_darven_who_published_author';
-const DARVEN_WHO_PUBLISHED_WAS_GUESSED     = '_darven_who_published_author_was_guessed';
+define( 'DARVEN_WHO_PUBLISHED_URL', plugin_dir_url( __FILE__ ) );
+define( 'DARVEN_WHO_PUBLISHED_DIR', dirname( plugin_basename( __FILE__ ) ) );
+const DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR            = '_darven_who_published_author';
+const DARVEN_WHO_PUBLISHED_WAS_GUESSED                = '_darven_who_published_author_was_guessed';
 const DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED = '_darven_who_published_first_publication_observed';
-const DARVEN_WHO_PUBLISHED_VERSION = '1.1.0';
+const DARVEN_WHO_PUBLISHED_VERSION                    = '1.1.0';
 
-add_action( 'plugins_loaded', function () {
-	if( ! class_exists('Darven\WhoPublished\Core\Starter')){
-		return;
+add_action(
+	'plugins_loaded',
+	function () {
+		if ( ! class_exists( 'Darven\WhoPublished\Core\Starter' ) ) {
+			return;
+		}
+		( new \Darven\WhoPublished\Core\Starter() )->start();
 	}
-	( new \Darven\WhoPublished\Core\Starter() )->start();
-
-} );
+);

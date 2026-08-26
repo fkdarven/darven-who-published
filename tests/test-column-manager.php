@@ -206,12 +206,12 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		$_GET['darven_who_published_filter']       = (string) $publisher_id;
 		$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
 
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exercises preservation of an unrelated existing metadata clause.
 		$query = new WP_Query(
 			array(
 				'post_type'   => 'post',
 				'post_status' => 'publish',
 				'fields'      => 'ids',
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Deliberate integration fixture, bounded to the disposable test database, verifies preservation of an existing metadata clause.
 				'meta_query'  => array(
 					array(
 						'key'   => '_editorial_section',
@@ -285,6 +285,7 @@ class Test_Column_Manager extends WP_UnitTestCase {
 				'post_type'   => 'post',
 				'post_status' => 'publish',
 				'fields'      => 'ids',
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Deliberate integration fixture, bounded to the disposable test database, verifies nesting of a pre-existing OR metadata clause.
 				'meta_query'  => array(
 					'relation' => 'OR',
 					array(
@@ -310,10 +311,10 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_nonexistent_selected_publisher_does_not_modify_the_query(): void {
-		$nonexistent_id = 999999;
+		$nonexistent_id                            = 999999;
 		$_GET['darven_who_published_filter']       = (string) $nonexistent_id;
 		$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
-		$query = new WP_Query(
+		$query                                     = new WP_Query(
 			array(
 				'post_type'   => 'post',
 				'post_status' => 'publish',
