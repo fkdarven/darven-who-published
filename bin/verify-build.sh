@@ -66,6 +66,14 @@ while IFS= read -r entry; do
 	if [[ "$entry" =~ [[:cntrl:]] ]]; then
 		fail "entry contains control characters"
 	fi
+
+	case "$relative_path" in
+		""|darven-who-published.php|readme.txt|assets|assets/|assets/*|languages|languages/|languages/*|src|src/|src/*|vendor|vendor/|vendor/autoload.php|vendor/composer|vendor/composer/|vendor/composer/*)
+			;;
+		*)
+			fail "path is outside the approved production manifest: $entry"
+			;;
+	esac
 done < "$manifest_file"
 
 require_file() {

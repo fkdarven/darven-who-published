@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mysql:
-        image: mysql:8.4
+        image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
         env:
           MYSQL_DATABASE: wordpress_test
           MYSQL_ROOT_PASSWORD: root
@@ -26,15 +26,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.0'
           coverage: none
           extensions: mysqli
-          tools: composer:v2
+          tools: composer:2.10.2
 
       - name: Install development dependencies
         run: composer install --no-interaction --prefer-dist
@@ -48,22 +48,37 @@ jobs:
       - name: Run coding standards
         run: composer phpcs
 
+      - name: Test release tooling boundaries
+        run: bash bin/test-release-tools.sh
+
       - name: Build production plugin
         run: bash bin/build-plugin.sh
 
       - name: Verify production archive
         run: bash bin/verify-build.sh build/darven-who-published.1.1.0.zip
 
+      - name: Run WordPress Plugin Check
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1
+        with:
+          build-dir: build/plugin/darven-who-published
+          slug: darven-who-published
+
+      # plugin-check-action v1 only special-cases `trunk`; numeric versions use
+      # wp-env's current stable core. Fail closed unless that runtime is 7.1.
+      - name: Assert Plugin Check WordPress version
+        run: |
+          plugin_check_wp_version=$(wp-env run cli wp core version)
+          case "$plugin_check_wp_version" in
+            7.1|7.1.*) ;;
+            *)
+              echo "Plugin Check ran on WordPress $plugin_check_wp_version; expected 7.1.x." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Upload production archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: darven-who-published-1.1.0
           path: build/darven-who-published.1.1.0.zip
           if-no-files-found: error
-
-      - name: Run WordPress Plugin Check
-        uses: WordPress/plugin-check-action@v1
-        with:
-          build-dir: build/plugin/darven-who-published
-          wp-version: '7.1'
-          slug: darven-who-published
