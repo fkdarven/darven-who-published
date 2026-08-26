@@ -52,7 +52,10 @@ class Starter {
     public function setup() {
         RegisterMeta::register();
         (new PublisherTracker())->init();
-        (new ColumnManager())->start();
-        (new MetaBoxDisplay())->register();
+
+        if ( is_admin() ) {
+            (new ColumnManager())->start();
+            (new MetaBoxDisplay())->register();
+        }
     }
 }

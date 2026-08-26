@@ -25,9 +25,6 @@ const DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR = '_darven_who_published_author';
 const DARVEN_WHO_PUBLISHED_WAS_GUESSED     = '_darven_who_published_author_was_guessed';
 
 add_action( 'plugins_loaded', function () {
-	if ( ! is_admin() ) {
-		return;
-	}
 	if( ! class_exists('Darven\WhoPublished\Core\Starter')){
 		return;
 	}

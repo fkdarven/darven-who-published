@@ -36,16 +36,18 @@ class RegisterMeta {
      * @since 1.0.0
      */
     public static function register(): void {
-        register_post_meta('post', DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, [
-            'type'              => 'integer',
-            'single'            => true,
-            'sanitize_callback' => 'absint',
-            'auth_callback'     => function () {
-                return current_user_can('edit_posts');
-            },
-            'show_in_rest'      => true,
-            'description'       => 'Original author who published the post',
-        ]);
+        foreach ( [ 'post', 'page' ] as $post_type ) {
+            register_post_meta($post_type, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, [
+                'type'              => 'integer',
+                'single'            => true,
+                'sanitize_callback' => 'absint',
+                'auth_callback'     => function () {
+                    return current_user_can('edit_posts');
+                },
+                'show_in_rest'      => true,
+                'description'       => 'Original author who published the post',
+            ]);
+        }
 
         register_post_meta('post', DARVEN_WHO_PUBLISHED_WAS_GUESSED, [
             'type'              => 'boolean',

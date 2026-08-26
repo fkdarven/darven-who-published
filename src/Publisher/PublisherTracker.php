@@ -30,20 +30,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PublisherTracker {
 
     /**
-     * The user ID of the current user.
-     *
-     * @var int|null
-     */
-    private ?int $user_id = null;
-
-    /**
-     * Whether a publication meta entry already exists.
-     *
-     * @var string|false|null
-     */
-    private string|false|null $meta_exists = null;
-
-    /**
      * Registers the WordPress hooks needed to track publishing.
      *
      * @return void
@@ -51,39 +37,45 @@ class PublisherTracker {
      */
     public function init(): void {
         add_action( 'transition_post_status', [ $this, 'handle_publish_transition' ], 10, 3 );
-        add_action( 'rest_after_insert_post', [ $this, 'handle_rest_publish' ], 10, 2 );
         add_action( 'wp_insert_post',         [ $this, 'handle_wp_insert' ], 10, 3 );
-        add_action( 'publish_post',           [ $this, 'handle_publish_simple' ] );
-        add_action( 'publish_page',           [ $this, 'handle_publish_simple' ] );
     }
 
     /**
-     * Loads relevant metadata and user context for publishing tracking.
-     *
-     * @param int $post_id The ID of the post being published.
-     * @return void
-     * @since 1.0.0
-     */
-    private function prepare( int $post_id ): void {
-        $this->meta_exists = get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true );
-        $this->user_id = get_current_user_id();
-    }
-
-    /**
-     * Attempts to save the publishing author metadata.
+     * Captures the authenticated user who first publishes a supported item.
      *
      * @param int $post_id The ID of the post being processed.
      * @return void
      * @since 1.0.0
      */
-    private function try_register_author( int $post_id ): void {
-        $this->prepare( $post_id );
+    public function capture( int $post_id ): void {
+        $post = get_post( $post_id );
 
-        if ( $this->meta_exists || ! $this->user_id ) {
+        if ( ! $post || ! $this->is_supported_post( $post ) ) {
             return;
         }
 
-        update_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $this->user_id );
+        if ( get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true ) ) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+
+        if ( $user_id <= 0 ) {
+            return;
+        }
+
+        add_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $user_id, true );
+    }
+
+    /**
+     * Checks whether a post belongs to a supported content type.
+     *
+     * @param \WP_Post $post The post to inspect.
+     * @return bool
+     * @since 1.0.0
+     */
+    private function is_supported_post( \WP_Post $post ): bool {
+        return in_array( $post->post_type, [ 'post', 'page' ], true );
     }
 
     /**
@@ -97,21 +89,7 @@ class PublisherTracker {
      */
     public function handle_publish_transition( string $new_status, string $old_status, \WP_Post $post ): void {
         if ( $new_status === 'publish' && $old_status !== 'publish' ) {
-            $this->try_register_author( $post->ID );
-        }
-    }
-
-    /**
-     * Handles REST-based post publication.
-     *
-     * @param \WP_Post         $post    The post object.
-     * @param \WP_REST_Request $request The REST request.
-     * @return void
-     * @since 1.0.0
-     */
-    public function handle_rest_publish( \WP_Post $post, \WP_REST_Request $request ): void {
-        if ( $post->post_status === 'publish' ) {
-            $this->try_register_author( $post->ID );
+            $this->capture( $post->ID );
         }
     }
 
@@ -126,18 +104,7 @@ class PublisherTracker {
      */
     public function handle_wp_insert( int $post_id, \WP_Post $post, bool $update ): void {
         if ( $post->post_status === 'publish' && ! $update ) {
-            $this->try_register_author( $post_id );
+            $this->capture( $post_id );
         }
-    }
-
-    /**
-     * Fallback for classic publish actions for post/page.
-     *
-     * @param int $post_id The ID of the post or page being published.
-     * @return void
-     * @since 1.0.0
-     */
-    public function handle_publish_simple( int $post_id ): void {
-        $this->try_register_author( $post_id );
     }
 }
