@@ -1,0 +1,11 @@
+{
+  "name": "darven/who-published",
+  "description": "Registers and show who first published a post.",
+  "type": "wordpress-plugin",
+  "autoload": {
+    "psr-4": {
+      "Darven\\WhoPublished\\": "src/"
+    }
+  },
+  "require": {}
+}

@@ -1,0 +1,17 @@
+.darven-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin-top: 4px;
+}
+
+.darven-badge-confirmed {
+  background-color: #2ecc71;
+}
+
+.darven-badge-guessed {
+  background-color: #f1c40f;
+}

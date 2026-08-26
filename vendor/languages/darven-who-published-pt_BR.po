@@ -1,0 +1,18 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Darven Who Published\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Who Published"
+msgstr "Publicado Por"
+
+msgid "Probably "
+msgstr "Provavelmente "
+
+msgid "All Original Authors"
+msgstr "Todos os Autores Originais"
+
+msgid "Based on revision or last edit."
+msgstr "Baseado na revisão ou última edição."
