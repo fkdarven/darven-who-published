@@ -1,12 +1,14 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: Who Published – Post Publisher Column 1.1.0\\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/darven-who-published/\\n"
-"Language: es_ES\\n"
-"MIME-Version: 1.0\\n"
-"Content-Type: text/plain; charset=UTF-8\\n"
-"Content-Transfer-Encoding: 8bit\\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\\n"
+"Project-Id-Version: Who Published – Post Publisher Column 1.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/fkdarven/darven-who-published/issues\n"
+"Language: es_ES\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"POT-Creation-Date: 2026-08-26T20:31:28+00:00\n"
+"PO-Revision-Date: 2026-08-26T20:31:28+00:00\n"
 
 #. Plugin Name of the plugin
 #: darven-who-published.php
@@ -23,11 +25,14 @@ msgstr "Muestra quién hizo clic realmente en Publicar junto al autor acreditado
 msgid "Darven"
 msgstr "Darven"
 
-#: src/Admin/ColumnManager.php:47 src/Admin/MetaBoxDisplay.php:42
+#: src/Admin/ColumnManager.php:47
+#: src/Admin/MetaBoxDisplay.php:42
 msgid "Published by"
 msgstr "Publicado por"
 
-#: src/Admin/ColumnManager.php:72 src/Admin/PublisherBadge.php:31 src/Admin/PublisherBadge.php:36
+#: src/Admin/ColumnManager.php:72
+#: src/Admin/PublisherBadge.php:31
+#: src/Admin/PublisherBadge.php:36
 msgid "Unknown"
 msgstr "Desconocido"
 
@@ -75,7 +80,9 @@ msgstr "el autor acreditado de la entrada"
 msgid "available post data"
 msgstr "datos disponibles de la entrada"
 
-#: src/Admin/SettingsPage.php:66 src/Admin/SettingsPage.php:67 src/Admin/SettingsPage.php:87
+#: src/Admin/SettingsPage.php:66
+#: src/Admin/SettingsPage.php:67
+#: src/Admin/SettingsPage.php:87
 msgid "Who Published"
 msgstr "Quién publicó"
 

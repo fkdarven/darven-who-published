@@ -1,13 +1,13 @@
 <?php
 
 /**
- * Tracks and stores the original author who published a post.
+ * Tracks and stores the authenticated user who first publishes a post.
  *
  * @package Darven\WhoPublished
  * @subpackage Publisher
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 namespace Darven\WhoPublished\Publisher;
@@ -19,13 +19,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class PublisherTracker
  *
- * Observes various WordPress hooks to determine the original publishing author of a post.
+ * Observes WordPress hooks to determine the first publisher of a post.
  *
  * @package Darven\WhoPublished
  * @subpackage Publisher
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 class PublisherTracker {
 

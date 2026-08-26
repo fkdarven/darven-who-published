@@ -6,7 +6,7 @@
  * @subpackage Core
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 namespace Darven\WhoPublished\Core;
@@ -30,7 +30,7 @@ use Darven\WhoPublished\Publisher\PublisherTracker;
  * @subpackage Core
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 class Starter {
 

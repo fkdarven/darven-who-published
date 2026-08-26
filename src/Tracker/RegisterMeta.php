@@ -7,7 +7,7 @@
  * @subpackage Tracker
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 namespace Darven\WhoPublished\Tracker;
@@ -19,18 +19,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class RegisterMeta
  *
- * Handles registration of post meta fields related to original publication tracking.
+ * Handles registration of post meta fields related to first-publisher tracking.
  *
  * @package Darven\WhoPublished
  * @subpackage Tracker
  * @author Darven
  * @since 1.0.0
- * @version 1.0.0
+ * @version 1.1.0
  */
 class RegisterMeta {
 
     /**
-     * Registers custom meta fields for storing the original author and guess status.
+     * Registers custom meta fields for confirmed publishers and legacy estimate status.
      *
      * @return void
      * @since 1.0.0
@@ -45,7 +45,7 @@ class RegisterMeta {
                     return current_user_can('edit_posts');
                 },
                 'show_in_rest'      => true,
-                'description'       => 'Original author who published the post',
+                'description'       => 'First authenticated publisher of the post',
             ]);
 
             register_post_meta($post_type, DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED, [
@@ -94,7 +94,7 @@ class RegisterMeta {
                 return current_user_can('edit_posts');
             },
             'show_in_rest'      => false,
-            'description'       => 'Whether the original author was guessed',
+            'description'       => 'Whether legacy publisher data was estimated',
         ]);
     }
 }
