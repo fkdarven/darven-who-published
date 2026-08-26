@@ -1,57 +1,87 @@
-=== Darven - Who Published ===
+=== Who Published – Post Publisher Column ===
 Contributors: fkdarven
-Tags: authorship, meta, post author, publisher, editorial
+Tags: publisher, editorial workflow, audit trail, multi author, post author
 Requires at least: 5.6
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Preserves and displays the original user who published a post, even after edits or updates.
+Shows who actually clicked Publish beside the credited post author—without opening a separate activity log.
 
 == Description ==
 
-Darven - Who Published ensures editorial integrity by saving and displaying the original author who published a WordPress post or page. Even if a post is edited later by other users, the plugin preserves the original publisher information and displays it in the admin interface.
+The author wrote it. The publisher sent it live.
 
-Features include:
+Who Published records the user who first publishes each post or page and displays that person directly beside the native Author column.
 
-1. A new column "Who Published" in post and page listings.
-2. A visual badge system to highlight confirmed and guessed authors.
-3. A metabox in the post editor showing the original author.
-4. Admin filtering by original publisher.
-5. REST API compatibility.
-6. Translations included: pt_BR, pt_PT, es_ES.
+In an editorial workflow, the person credited as Author is not always the person who sent a post live. Who Published makes that narrow, useful distinction visible in the WordPress admin without turning your site into a full activity log. It records the first authenticated publisher and preserves that confirmed record through later edits and republishes.
+
+= Clear publisher states =
+
+* Confirmed: the authenticated user who first published the post or page. This value is immutable once recorded.
+* Estimated: an explicitly marked historical estimate, based on legacy Who Published data, the last editor, the latest revision, or the credited post author. An estimate is never presented as proof.
+* Unknown: there is no confirmed publisher, or historical estimation is disabled.
+
+Historical estimation is off by default. WordPress cannot prove who published content created before plugin activation, so enabling estimation only permits clearly labelled estimates. Turning it off hides estimates without deleting confirmed publisher data.
+
+= Focused editorial accountability =
+
+* Shows a Published by column immediately after Author on Posts and Pages.
+* Lets you filter list tables by confirmed publisher; when historical estimation is enabled, estimated publishers are included as clearly identified matches.
+* Adds a Published by metabox in the editor with the same confirmed, estimated, or unknown state.
+* Captures first publication in wp-admin, REST API, and supported programmatic publication flows.
+* Keeps compatibility with existing confirmed metadata and reads legacy 1.0.0 guessed values only as optional estimates.
+
+Who Published is not a full activity log. It does not record every change, create audit-event timelines, or display publishers on the public site. It answers one focused editorial question: who actually clicked Publish?
 
 == Installation ==
 
-1. Upload the plugin folder to `/wp-content/plugins/darven-who-published`.
-2. Activate the plugin through the "Plugins" screen in WordPress.
-3. The "Who Published" column and metabox will appear automatically.
+1. Upload the `darven-who-published` folder to `/wp-content/plugins/`, or install the plugin from the WordPress Plugins screen.
+2. Activate Who Published through the Plugins screen in WordPress.
+3. Open Posts or Pages to find Published by directly after Author. Optionally enable historical estimation in Settings → Who Published.
 
 == Frequently Asked Questions ==
 
-= What happens if the author can't be determined? =
-A fallback system tries to guess using the last editor or revision author.
+= Does this change the credited post author? =
 
-= Can I disable the guessing logic? =
-Not yet, but a filter hook will be available in a future version.
+No. WordPress keeps the credited Author unchanged. Who Published stores and shows the separate user who first published the post or page.
+
+= Why is a publisher estimated or unknown? =
+
+Posts published after activation receive a confirmed publisher when an authenticated user first publishes them. Older content cannot be proven. Historical estimation is disabled by default; when enabled, estimates are visibly labelled with their evidence source. Otherwise, the state is Unknown.
+
+= Does it support the REST API? =
+
+Yes. First-publication capture works for supported wp-admin, REST API, and programmatic publication paths. Confirmed publisher metadata is available through REST to users who can edit the relevant content.
+
+= Is this an activity log? =
+
+No. This plugin deliberately does not maintain a general activity log or a record of every edit. It preserves the first publisher for a focused editorial-accountability view.
 
 == Screenshots ==
 
-1. "Who Published" column with badge indicators.
-2. Metabox showing original publisher.
-3. Admin post list filter for original author.
+1. Posts table: João is the credited Author and Maria is the confirmed Published by user in the adjacent column.
+2. Settings → Who Published: historical publisher estimation is disabled by default, with the integrity explanation visible.
+3. Editor metabox: Maria is shown as the confirmed publisher.
 
 == Changelog ==
 
+= 1.1.0 =
+* Records the first authenticated publisher for posts and pages across wp-admin, REST API, and supported programmatic publication contexts, and keeps confirmed records immutable.
+* Registers publisher metadata for both posts and pages, with safe REST visibility for confirmed publisher data.
+* Adds explicit confirmed, estimated, and unknown publisher states. Historical estimation is opt-in, disabled by default, and never replaces confirmed data.
+* Preserves migration compatibility: existing confirmed metadata remains authoritative, while legacy 1.0.0 guessed IDs are read only as optional historical estimates.
+* Adds a Published by column directly beside Author, list filtering, an editor metabox, and Settings → Who Published.
+* Renders publisher badges, links, filter values, settings controls, and metabox markup safely.
+* Updates compatibility declarations for WordPress 5.6 through 7.1 and PHP 8.0 or later.
+* Refreshes the directory identity, listing copy, screenshots, and versioned admin assets for the editorial-team relaunch.
+
 = 1.0.0 =
 * Initial stable release.
-* Includes metabox, column, author filter and fallback logic.
-* Supports translation and REST API.
 
 == Upgrade Notice ==
 
-= 1.0.0 =
-First stable release. Recommended for editorial teams and multi-author blogs.
-
+= 1.1.0 =
+The relaunch preserves confirmed publisher records, adds support for pages and modern publication contexts, and keeps unproven historical data clearly optional.

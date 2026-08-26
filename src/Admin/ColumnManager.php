@@ -162,7 +162,7 @@ class ColumnManager {
 	public function enqueue_admin_styles(): void {
 		$screen = get_current_screen();
 		if ( isset( $screen->id ) && in_array( $screen->id, array( 'edit-post', 'edit-page' ), true ) ) {
-			wp_enqueue_style( 'darven-who-published-admin', DARVEN_WHO_PUBLISHED_URL . 'assets/css/admin.css', array(), '1.1.0' );
+			wp_enqueue_style( 'darven-who-published-admin', DARVEN_WHO_PUBLISHED_URL . 'assets/css/admin.css', array(), DARVEN_WHO_PUBLISHED_VERSION );
 		}
 	}
 
