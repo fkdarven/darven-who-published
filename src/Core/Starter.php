@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use Darven\WhoPublished\Admin\ColumnManager;
 use Darven\WhoPublished\Admin\MetaBoxDisplay;
+use Darven\WhoPublished\Admin\SettingsPage;
 use Darven\WhoPublished\Tracker\RegisterMeta;
 use Darven\WhoPublished\Publisher\PublisherTracker;
 
@@ -56,6 +57,7 @@ class Starter {
         if ( is_admin() ) {
             (new ColumnManager())->start();
             (new MetaBoxDisplay())->register();
+            (new SettingsPage())->start();
         }
     }
 }

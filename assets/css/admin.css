@@ -1,17 +1,27 @@
 .darven-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  margin-top: 4px;
+	display: inline-block;
+	padding: 2px 7px;
+	border-radius: 2px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.5;
+	text-decoration: none;
 }
 
 .darven-badge-confirmed {
-  background-color: #2ecc71;
+	background: #2271b1;
+	color: #fff;
 }
 
-.darven-badge-guessed {
-  background-color: #f1c40f;
+.darven-badge-confirmed::before {
+	content: "\2713 ";
+}
+
+.darven-badge-estimated {
+	background: #dba617;
+	color: #1d2327;
+}
+
+.darven-publisher-unknown {
+	color: #646970;
 }
