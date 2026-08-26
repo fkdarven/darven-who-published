@@ -87,21 +87,16 @@ class ColumnManager {
 			return;
 		}
 
-		$publisher_ids = $this->publisher_ids();
-		if ( empty( $publisher_ids ) ) {
+		$publishers = $this->eligible_publishers();
+		if ( empty( $publishers ) ) {
 			return;
 		}
 
 		echo '<select name="darven_who_published_filter">';
 		printf( '<option value="">%s</option>', esc_html__( 'All publishers', 'darven-who-published' ) );
-		$current_value = $this->selected_publisher_id();
+		$current_value = $this->selected_publisher_id( array_keys( $publishers ) );
 
-		foreach ( $publisher_ids as $publisher_id ) {
-			$user = get_userdata( $publisher_id );
-			if ( ! $user ) {
-				continue;
-			}
-
+		foreach ( $publishers as $publisher_id => $user ) {
 			printf(
 				'<option value="%1$d"%2$s>%3$s</option>',
 				absint( $publisher_id ),
@@ -125,7 +120,7 @@ class ColumnManager {
 			return;
 		}
 
-		$publisher_id = $this->selected_publisher_id();
+		$publisher_id = $this->selected_publisher_id( array_keys( $this->eligible_publishers() ) );
 		if ( $publisher_id <= 0 ) {
 			return;
 		}
@@ -172,11 +167,11 @@ class ColumnManager {
 	}
 
 	/**
-	 * Returns the unique publisher IDs represented in filterable metadata.
+	 * Returns existing users represented in filterable publisher metadata.
 	 *
-	 * @return int[]
+	 * @return array<int, \WP_User>
 	 */
-	private function publisher_ids(): array {
+	private function eligible_publishers(): array {
 		global $wpdb;
 		$meta_keys = array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR );
 		if ( $this->estimation_enabled() ) {
@@ -203,16 +198,24 @@ class ColumnManager {
 
 		$publisher_ids = array_values( array_unique( $publisher_ids ) );
 		sort( $publisher_ids, SORT_NUMERIC );
+		$publishers = array();
+		foreach ( $publisher_ids as $publisher_id ) {
+			$user = get_userdata( $publisher_id );
+			if ( $user ) {
+				$publishers[ $publisher_id ] = $user;
+			}
+		}
 
-		return $publisher_ids;
+		return $publishers;
 	}
 
 	/**
 	 * Reads a valid, nonce-protected selected publisher ID from the list-table request.
 	 *
+	 * @param int[] $eligible_ids Existing filterable publisher IDs.
 	 * @return int
 	 */
-	private function selected_publisher_id(): int {
+	private function selected_publisher_id( array $eligible_ids ): int {
 		if ( ! isset( $_GET['darven_who_published_filter'], $_GET['darven_who_published_filter_nonce'] ) ) {
 			return 0;
 		}
@@ -222,7 +225,9 @@ class ColumnManager {
 			return 0;
 		}
 
-		return absint( wp_unslash( $_GET['darven_who_published_filter'] ) );
+		$publisher_id = absint( wp_unslash( $_GET['darven_who_published_filter'] ) );
+
+		return in_array( $publisher_id, $eligible_ids, true ) ? $publisher_id : 0;
 	}
 
 	/**

@@ -303,4 +303,46 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		$this->assertSame( 'AND', $filtered->get( 'meta_query' )['relation'] );
 		$this->assertSame( 'OR', $filtered->get( 'meta_query' )[1]['relation'] );
 	}
+
+	/**
+	 * Catches nonce-valid arbitrary IDs that add a publisher condition without being eligible options.
+	 *
+	 * @return void
+	 */
+	public function test_nonexistent_selected_publisher_does_not_modify_the_query(): void {
+		$nonexistent_id = 999999;
+		$_GET['darven_who_published_filter']       = (string) $nonexistent_id;
+		$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
+		$query = new WP_Query(
+			array(
+				'post_type'   => 'post',
+				'post_status' => 'publish',
+				'fields'      => 'ids',
+			)
+		);
+		global $wp_the_query;
+		$wp_the_query = $query;
+
+		( new ColumnManager() )->apply_filter_query( $query );
+
+		$this->assertSame( '', $query->get( 'meta_query' ) );
+	}
+
+	/**
+	 * Catches a selector shell left behind when all publisher metadata points to deleted users.
+	 *
+	 * @return void
+	 */
+	public function test_deleted_publisher_metadata_does_not_render_an_empty_selector(): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$post_id      = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		update_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+		wp_delete_user( $publisher_id );
+
+		ob_start();
+		( new ColumnManager() )->add_filter_dropdown( 'post' );
+		$output = (string) ob_get_clean();
+
+		$this->assertSame( '', $output );
+	}
 }
