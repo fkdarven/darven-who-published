@@ -76,7 +76,7 @@ No. This plugin deliberately does not maintain a general activity log or a recor
 * Adds a Published by column directly beside Author, list filtering, an editor metabox, and Settings → Who Published.
 * Renders publisher badges, links, filter values, settings controls, and metabox markup safely.
 * Updates compatibility declarations for WordPress 5.6 through 7.1 and PHP 8.0 or later.
-* Refreshes the directory identity, listing copy, screenshots, and versioned admin assets for the editorial-team relaunch.
+* Prepares the refreshed directory positioning, listing copy, and João/Maria screenshot captions for the editorial-team relaunch.
 
 = 1.0.0 =
 * Initial stable release.
