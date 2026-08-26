@@ -54,7 +54,11 @@ class PublisherTracker {
             return;
         }
 
-        if ( get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true ) ) {
+        if ( get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true ) || get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED, true ) ) {
+            return;
+        }
+
+        if ( ! add_post_meta( $post_id, DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED, true, true ) ) {
             return;
         }
 

@@ -99,6 +99,30 @@ class Test_Publisher_Tracker extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches a republish that credits a user after an anonymous first publication.
+	 *
+	 * @return void
+	 */
+	public function test_authenticated_republish_after_anonymous_first_publication_remains_unknown(): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$post_id      = self::factory()->post->create( array( 'post_status' => 'draft' ) );
+
+		wp_set_current_user( 0 );
+		wp_publish_post( $post_id );
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => 'draft',
+			)
+		);
+
+		wp_set_current_user( $publisher_id );
+		wp_publish_post( $post_id );
+
+		$this->assertSame( '', get_post_meta( $post_id, '_darven_who_published_author', true ) );
+	}
+
+	/**
 	 * Catches a tracker that stores metadata on unsupported custom post types.
 	 *
 	 * @return void

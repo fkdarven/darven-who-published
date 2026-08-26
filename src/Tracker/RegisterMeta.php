@@ -47,6 +47,17 @@ class RegisterMeta {
                 'show_in_rest'      => true,
                 'description'       => 'Original author who published the post',
             ]);
+
+            register_post_meta($post_type, DARVEN_WHO_PUBLISHED_FIRST_PUBLICATION_OBSERVED, [
+                'type'              => 'boolean',
+                'single'            => true,
+                'sanitize_callback' => 'rest_sanitize_boolean',
+                'auth_callback'     => function () {
+                    return current_user_can('edit_posts');
+                },
+                'show_in_rest'      => false,
+                'description'       => 'Whether the first publication was observed',
+            ]);
         }
 
         register_post_meta('post', DARVEN_WHO_PUBLISHED_WAS_GUESSED, [
