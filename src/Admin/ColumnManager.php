@@ -155,13 +155,13 @@ class ColumnManager {
 	}
 
 	/**
-	 * Enqueues the WordPress-native publisher state styles on supported list tables.
+	 * Enqueues the WordPress-native publisher state styles on supported list and editor screens.
 	 *
 	 * @return void
 	 */
 	public function enqueue_admin_styles(): void {
 		$screen = get_current_screen();
-		if ( isset( $screen->id ) && in_array( $screen->id, array( 'edit-post', 'edit-page' ), true ) ) {
+		if ( isset( $screen->id ) && in_array( $screen->id, array( 'edit-post', 'edit-page', 'post', 'page' ), true ) ) {
 			wp_enqueue_style( 'darven-who-published-admin', DARVEN_WHO_PUBLISHED_URL . 'assets/css/admin.css', array(), DARVEN_WHO_PUBLISHED_VERSION );
 		}
 	}

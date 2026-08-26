@@ -345,4 +345,22 @@ class Test_Column_Manager extends WP_UnitTestCase {
 
 		$this->assertSame( '', $output );
 	}
+
+	/**
+	 * Catches editor screens that render publisher badges without the registered stylesheet.
+	 *
+	 * @return void
+	 */
+	public function test_admin_styles_are_enqueued_on_post_and_page_list_and_editor_screens(): void {
+		$manager = new ColumnManager();
+
+		foreach ( array( 'edit-post', 'edit-page', 'post', 'page' ) as $screen_id ) {
+			set_current_screen( $screen_id );
+			wp_dequeue_style( 'darven-who-published-admin' );
+			$manager->enqueue_admin_styles();
+
+			$this->assertTrue( wp_style_is( 'darven-who-published-admin', 'enqueued' ), $screen_id );
+			$this->assertSame( DARVEN_WHO_PUBLISHED_VERSION, wp_styles()->registered['darven-who-published-admin']->ver, $screen_id );
+		}
+	}
 }
