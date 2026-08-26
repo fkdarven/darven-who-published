@@ -1,6 +1,6 @@
 <?php
 /**
- * Retrieves the original author who published a post.
+ * Retrieves the confirmed, estimated, or unknown publisher of a post.
  *
  * @package Darven\WhoPublished
  * @subpackage Publisher
@@ -11,35 +11,59 @@
 
 namespace Darven\WhoPublished\Publisher;
 
+use Darven\WhoPublished\Settings\SettingsRepository;
+use WP_Post;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Retrieves publisher identities without treating estimates as confirmation.
+ */
 class PublisherRetriever {
 
-	public function get_publisher( $post ): int {
+	/**
+	 * Gets the publisher identity for a supported publication status.
+	 *
+	 * @param WP_Post $post Post being displayed.
+	 * @return PublisherIdentity
+	 */
+	public function get_publisher( WP_Post $post ): PublisherIdentity {
 		if ( ! in_array( $post->post_status, $this->allowed_statuses(), true ) ) {
-			return 0;
+			return PublisherIdentity::unknown();
 		}
 
-		$publisher_id = $this->get_by_meta( $post->ID );
+		$publisher_id = $this->confirmed_publisher_id( $post->ID );
 
-		if ( $publisher_id ) {
-			update_post_meta($post->ID, DARVEN_WHO_PUBLISHED_WAS_GUESSED, false);;
-			return (int) $publisher_id;
+		if ( $publisher_id > 0 ) {
+			return PublisherIdentity::confirmed( $publisher_id );
 		}
 
-		$publisher_guesser = new PublisherGuesser();
-		$publisher_id = $publisher_guesser->guess_publisher( $post );
-		return (int) $publisher_id;
+		if ( ! ( new SettingsRepository() )->estimation_enabled( $post ) ) {
+			return PublisherIdentity::unknown();
+		}
+
+		return ( new PublisherEstimator() )->estimate( $post );
 	}
 
-	private function get_by_meta( $post_id ): int {
+	/**
+	 * Reads confirmed metadata without changing existing evidence.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return int
+	 */
+	private function confirmed_publisher_id( int $post_id ): int {
 		$publisher_id = get_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true );
 
-		return $publisher_id ? (int) $publisher_id : 0;
+		return absint( $publisher_id );
 	}
 
+	/**
+	 * Lists statuses that may have a publisher identity.
+	 *
+	 * @return string[]
+	 */
 	private function allowed_statuses(): array {
 		return [ 'publish', 'private', 'future' ];
 	}

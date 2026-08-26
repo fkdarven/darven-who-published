@@ -58,6 +58,32 @@ class RegisterMeta {
                 'show_in_rest'      => false,
                 'description'       => 'Whether the first publication was observed',
             ]);
+
+            register_post_meta($post_type, '_darven_who_published_estimated_author', [
+                'type'              => 'integer',
+                'single'            => true,
+                'sanitize_callback' => 'absint',
+                'auth_callback'     => function () {
+                    return current_user_can('edit_posts');
+                },
+                'show_in_rest'      => false,
+                'description'       => 'Estimated publisher user ID',
+            ]);
+
+            register_post_meta($post_type, '_darven_who_published_estimation_source', [
+                'type'              => 'string',
+                'single'            => true,
+                'sanitize_callback' => function ( $source ) {
+                    $sources = array( 'legacy', 'edit_last', 'latest_revision', 'post_author' );
+
+                    return in_array( $source, $sources, true ) ? $source : '';
+                },
+                'auth_callback'     => function () {
+                    return current_user_can('edit_posts');
+                },
+                'show_in_rest'      => false,
+                'description'       => 'Estimated publisher evidence source',
+            ]);
         }
 
         register_post_meta('post', DARVEN_WHO_PUBLISHED_WAS_GUESSED, [
