@@ -669,6 +669,137 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Pins every rejected stored representation across all publisher candidate keys.
+	 *
+	 * @dataProvider invalid_stored_publisher_id_cases
+	 * @param string $boundary_case Boundary case name.
+	 * @return void
+	 */
+	public function test_dropdown_rejects_the_complete_invalid_stored_id_boundary( string $boundary_case ): void {
+		$target_id  = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Rejected Boundary Publisher',
+			)
+		);
+		$control_id = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Accepted Boundary Control',
+			)
+		);
+		$control    = self::factory()->post->create();
+		update_post_meta( $control, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $control_id );
+		$candidate = $this->stored_publisher_id_boundary_value( $boundary_case, $target_id );
+
+		if ( 'overflow' === $boundary_case ) {
+			$cached_user               = clone get_userdata( $target_id )->data;
+			$cached_user->ID           = PHP_INT_MAX;
+			$cached_user->display_name = 'Rejected Boundary Publisher';
+			wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
+		}
+
+		foreach ( array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, '_darven_who_published_estimated_author', DARVEN_WHO_PUBLISHED_WAS_GUESSED ) as $meta_key ) {
+			$post_id = self::factory()->post->create();
+			$this->add_raw_publisher_meta( $post_id, $meta_key, $candidate );
+		}
+		update_option( 'darven_who_published_enable_estimation', true );
+
+		try {
+			ob_start();
+			( new ColumnManager() )->add_filter_dropdown( 'post' );
+			$output = (string) ob_get_clean();
+
+			$this->assertStringContainsString( 'Accepted Boundary Control', $output, $boundary_case );
+			$this->assertStringNotContainsString( 'Rejected Boundary Publisher', $output, $boundary_case );
+		} finally {
+			if ( 'overflow' === $boundary_case ) {
+				wp_cache_delete( PHP_INT_MAX, 'users' );
+			}
+		}
+	}
+
+	/**
+	 * Pins both accepted stored representations across all publisher candidate keys.
+	 *
+	 * @dataProvider valid_stored_publisher_id_cases
+	 * @param string $boundary_case Accepted boundary case name.
+	 * @return void
+	 */
+	public function test_dropdown_accepts_the_complete_valid_stored_id_boundary( string $boundary_case ): void {
+		$publisher_id = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Accepted Stored Publisher',
+			)
+		);
+		$candidate    = 'positive_integer' === $boundary_case ? $publisher_id : (string) $publisher_id;
+		foreach ( array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, '_darven_who_published_estimated_author', DARVEN_WHO_PUBLISHED_WAS_GUESSED ) as $meta_key ) {
+			$post_id = self::factory()->post->create();
+			$this->add_raw_publisher_meta( $post_id, $meta_key, $candidate );
+		}
+		update_option( 'darven_who_published_enable_estimation', true );
+
+		ob_start();
+		( new ColumnManager() )->add_filter_dropdown( 'post' );
+		$output = (string) ob_get_clean();
+
+		$this->assertSame( 1, substr_count( $output, 'Accepted Stored Publisher' ), $boundary_case );
+	}
+
+	/**
+	 * Pins both accepted request representations through the public dropdown behavior.
+	 *
+	 * @dataProvider valid_stored_publisher_id_cases
+	 * @param string $boundary_case Accepted boundary case name.
+	 * @return void
+	 */
+	public function test_dropdown_accepts_positive_integer_and_canonical_string_requests( string $boundary_case ): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$post_id      = self::factory()->post->create();
+		update_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+		$_GET['darven_who_published_filter']       = 'positive_integer' === $boundary_case ? $publisher_id : (string) $publisher_id;
+		$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
+
+		ob_start();
+		( new ColumnManager() )->add_filter_dropdown( 'post' );
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'value="' . $publisher_id . '" selected=', $output, $boundary_case );
+	}
+
+	/**
+	 * Provides malformed scalar representations that can exist in postmeta.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function invalid_stored_publisher_id_cases(): array {
+		return array(
+			'zero'             => array( 'zero' ),
+			'negative'         => array( 'negative' ),
+			'float string'     => array( 'float_string' ),
+			'junk suffix'      => array( 'junk' ),
+			'leading zero'     => array( 'leading_zero' ),
+			'plus sign'        => array( 'plus_sign' ),
+			'whitespace'       => array( 'whitespace' ),
+			'exponent'         => array( 'exponent' ),
+			'integer overflow' => array( 'overflow' ),
+		);
+	}
+
+	/**
+	 * Provides the two accepted positive-ID representations.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function valid_stored_publisher_id_cases(): array {
+		return array(
+			'positive integer'         => array( 'positive_integer' ),
+			'canonical decimal string' => array( 'canonical_string' ),
+		);
+	}
+
+	/**
 	 * Catches publisher discovery issuing one metadata query per key.
 	 *
 	 * @return void
@@ -677,12 +808,13 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
 		$post_id      = self::factory()->post->create();
 		update_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+		global $wpdb;
 
 		foreach ( array( false, true ) as $estimation_enabled ) {
 			update_option( 'darven_who_published_enable_estimation', $estimation_enabled );
 			$discovery_queries = array();
-			$query_recorder    = function ( $sql ) use ( &$discovery_queries ) {
-				if ( false !== strpos( $sql, 'SELECT DISTINCT meta_value' ) && false !== strpos( $sql, 'meta_key IN (' ) ) {
+			$query_recorder    = function ( $sql ) use ( &$discovery_queries, $wpdb ) {
+				if ( false !== strpos( $sql, 'SELECT DISTINCT meta_value' ) && false !== strpos( $sql, "FROM {$wpdb->postmeta}" ) ) {
 					$discovery_queries[] = $sql;
 				}
 				return $sql;
@@ -695,13 +827,17 @@ class Test_Column_Manager extends WP_UnitTestCase {
 
 			remove_filter( 'query', $query_recorder );
 			$this->assertCount( 1, $discovery_queries, $estimation_enabled ? 'enabled' : 'disabled' );
-			$this->assertStringContainsString( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $discovery_queries[0] );
+			$this->assertStringNotContainsString( 'meta_key =', $discovery_queries[0] );
 			if ( $estimation_enabled ) {
-				$this->assertStringContainsString( '_darven_who_published_estimated_author', $discovery_queries[0] );
-				$this->assertStringContainsString( DARVEN_WHO_PUBLISHED_WAS_GUESSED, $discovery_queries[0] );
+				$this->assertStringContainsString(
+					"meta_key IN ('" . DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR . "', '_darven_who_published_estimated_author', '" . DARVEN_WHO_PUBLISHED_WAS_GUESSED . "')",
+					$discovery_queries[0]
+				);
 			} else {
-				$this->assertStringNotContainsString( '_darven_who_published_estimated_author', $discovery_queries[0] );
-				$this->assertStringNotContainsString( DARVEN_WHO_PUBLISHED_WAS_GUESSED, $discovery_queries[0] );
+				$this->assertStringContainsString(
+					"meta_key IN ('" . DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR . "')",
+					$discovery_queries[0]
+				);
 			}
 		}
 	}
@@ -756,5 +892,37 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		);
 		// phpcs:enable
 		wp_cache_delete( $post_id, 'post_meta' );
+	}
+
+	/**
+	 * Builds a malformed stored value relative to an existing user ID.
+	 *
+	 * @param string $boundary_case    Boundary case name.
+	 * @param int    $existing_user_id Existing user ID used to expose lossy normalization.
+	 * @return string
+	 */
+	private function stored_publisher_id_boundary_value( string $boundary_case, int $existing_user_id ): string {
+		switch ( $boundary_case ) {
+			case 'zero':
+				return '0';
+			case 'negative':
+				return '-' . $existing_user_id;
+			case 'float_string':
+				return $existing_user_id . '.0';
+			case 'junk':
+				return $existing_user_id . 'junk';
+			case 'leading_zero':
+				return '0' . $existing_user_id;
+			case 'plus_sign':
+				return '+' . $existing_user_id;
+			case 'whitespace':
+				return ' ' . $existing_user_id . ' ';
+			case 'exponent':
+				return $existing_user_id . 'e0';
+			case 'overflow':
+				return (string) PHP_INT_MAX . '0';
+		}
+
+		$this->fail( 'Unknown stored boundary case: ' . $boundary_case );
 	}
 }

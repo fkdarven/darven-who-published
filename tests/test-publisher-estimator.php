@@ -442,6 +442,117 @@ class Test_Publisher_Estimator extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Pins the rejected boundary of the canonical publisher-ID contract on every estimate path.
+	 *
+	 * @dataProvider invalid_publisher_id_cases
+	 * @param string $boundary_case Boundary case name.
+	 * @return void
+	 */
+	public function test_estimated_publisher_filter_rejects_the_complete_invalid_id_boundary( string $boundary_case ): void {
+		$existing_user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$candidate        = $this->publisher_id_boundary_value( $boundary_case, $existing_user_id );
+		$posts            = $this->create_estimation_path_posts();
+		if ( 'overflow' === $boundary_case ) {
+			$cached_user     = clone get_userdata( $existing_user_id )->data;
+			$cached_user->ID = PHP_INT_MAX;
+			wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
+		}
+		add_filter(
+			'darven_who_published_estimated_publisher',
+			function () use ( $candidate ) {
+				return $candidate;
+			}
+		);
+
+		try {
+			$retriever = new PublisherRetriever();
+			foreach ( $posts as $path => $post_id ) {
+				$identity = $retriever->get_publisher( get_post( $post_id ) );
+				$this->assertSame( 'unknown', $identity->status(), $boundary_case . ':' . $path );
+				$this->assertSame( 0, $identity->user_id(), $boundary_case . ':' . $path );
+			}
+			$this->assertSame( '', get_post_meta( $posts['computed'], '_darven_who_published_estimated_author', true ), $boundary_case );
+			$this->assertSame( '', get_post_meta( $posts['computed'], '_darven_who_published_estimation_source', true ), $boundary_case );
+		} finally {
+			if ( 'overflow' === $boundary_case ) {
+				wp_cache_delete( PHP_INT_MAX, 'users' );
+			}
+		}
+	}
+
+	/**
+	 * Pins both accepted representations on every estimate path.
+	 *
+	 * @dataProvider valid_publisher_id_cases
+	 * @param string $boundary_case Accepted boundary case name.
+	 * @return void
+	 */
+	public function test_estimated_publisher_filter_accepts_the_complete_valid_id_boundary( string $boundary_case ): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$candidate    = 'positive_integer' === $boundary_case ? $publisher_id : (string) $publisher_id;
+		$posts        = $this->create_estimation_path_posts();
+		add_filter(
+			'darven_who_published_estimated_publisher',
+			function () use ( $candidate ) {
+				return $candidate;
+			}
+		);
+
+		$retriever        = new PublisherRetriever();
+		$expected_sources = array(
+			'legacy'    => 'legacy',
+			'persisted' => 'latest_revision',
+			'computed'  => 'edit_last',
+		);
+		foreach ( $posts as $path => $post_id ) {
+			$identity = $retriever->get_publisher( get_post( $post_id ) );
+			$this->assertSame( 'estimated', $identity->status(), $boundary_case . ':' . $path );
+			$this->assertSame( $publisher_id, $identity->user_id(), $boundary_case . ':' . $path );
+			$this->assertSame( $expected_sources[ $path ], $identity->source(), $boundary_case . ':' . $path );
+		}
+		$this->assertSame( (string) $publisher_id, get_post_meta( $posts['computed'], '_darven_who_published_estimated_author', true ), $boundary_case );
+		$this->assertSame( 'edit_last', get_post_meta( $posts['computed'], '_darven_who_published_estimation_source', true ), $boundary_case );
+	}
+
+	/**
+	 * Provides every rejected representation in the canonical positive-ID contract.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function invalid_publisher_id_cases(): array {
+		return array(
+			'zero integer'     => array( 'zero_integer' ),
+			'zero string'      => array( 'zero_string' ),
+			'negative integer' => array( 'negative_integer' ),
+			'negative string'  => array( 'negative_string' ),
+			'float'            => array( 'float' ),
+			'float string'     => array( 'float_string' ),
+			'junk suffix'      => array( 'junk' ),
+			'leading zero'     => array( 'leading_zero' ),
+			'plus sign'        => array( 'plus_sign' ),
+			'whitespace'       => array( 'whitespace' ),
+			'exponent'         => array( 'exponent' ),
+			'integer overflow' => array( 'overflow' ),
+			'array'            => array( 'array' ),
+			'object'           => array( 'object' ),
+			'boolean'          => array( 'boolean' ),
+			'null'             => array( 'null' ),
+		);
+	}
+
+	/**
+	 * Provides both accepted representations in the canonical positive-ID contract.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function valid_publisher_id_cases(): array {
+		return array(
+			'positive integer'         => array( 'positive_integer' ),
+			'canonical decimal string' => array( 'canonical_string' ),
+		);
+	}
+
+	/**
 	 * Catches registration that exposes estimation internals or omits pages.
 	 *
 	 * @return void
@@ -460,5 +571,86 @@ class Test_Publisher_Estimator extends WP_UnitTestCase {
 			$this->assertTrue( $registered_meta['_darven_who_published_estimation_source']['single'] );
 			$this->assertFalse( $registered_meta['_darven_who_published_estimation_source']['show_in_rest'] );
 		}
+	}
+
+	/**
+	 * Creates one post for each estimator evidence path.
+	 *
+	 * @return array{legacy: int, persisted: int, computed: int}
+	 */
+	private function create_estimation_path_posts(): array {
+		$legacy_id    = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$persisted_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$computed_id  = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$legacy_post  = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		$stored_post  = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		$new_post     = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		global $wpdb;
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Simulates the legacy integer schema before its boolean registration.
+		$wpdb->insert(
+			$wpdb->postmeta,
+			array(
+				'post_id'    => $legacy_post,
+				'meta_key'   => DARVEN_WHO_PUBLISHED_WAS_GUESSED,
+				'meta_value' => $legacy_id,
+			)
+		);
+		// phpcs:enable
+		wp_cache_delete( $legacy_post, 'post_meta' );
+		update_post_meta( $stored_post, '_darven_who_published_estimated_author', $persisted_id );
+		update_post_meta( $stored_post, '_darven_who_published_estimation_source', 'latest_revision' );
+		update_post_meta( $new_post, '_edit_last', $computed_id );
+
+		return array(
+			'legacy'    => $legacy_post,
+			'persisted' => $stored_post,
+			'computed'  => $new_post,
+		);
+	}
+
+	/**
+	 * Builds a boundary value relative to a real existing user ID.
+	 *
+	 * @param string $boundary_case    Boundary case name.
+	 * @param int    $existing_user_id Existing user ID used to expose lossy normalization.
+	 * @return mixed
+	 */
+	private function publisher_id_boundary_value( string $boundary_case, int $existing_user_id ) {
+		switch ( $boundary_case ) {
+			case 'zero_integer':
+				return 0;
+			case 'zero_string':
+				return '0';
+			case 'negative_integer':
+				return -$existing_user_id;
+			case 'negative_string':
+				return '-' . $existing_user_id;
+			case 'float':
+				return (float) $existing_user_id;
+			case 'float_string':
+				return $existing_user_id . '.0';
+			case 'junk':
+				return $existing_user_id . 'junk';
+			case 'leading_zero':
+				return '0' . $existing_user_id;
+			case 'plus_sign':
+				return '+' . $existing_user_id;
+			case 'whitespace':
+				return ' ' . $existing_user_id . ' ';
+			case 'exponent':
+				return $existing_user_id . 'e0';
+			case 'overflow':
+				return (string) PHP_INT_MAX . '0';
+			case 'array':
+				return array( $existing_user_id );
+			case 'object':
+				return (object) array( 'id' => $existing_user_id );
+			case 'boolean':
+				return true;
+			case 'null':
+				return null;
+		}
+
+		$this->fail( 'Unknown boundary case: ' . $boundary_case );
 	}
 }
