@@ -43,10 +43,12 @@ class RegisterMeta {
 					'type'              => 'integer',
 					'single'            => true,
 					'sanitize_callback' => 'absint',
-					'auth_callback'     => function () {
-						return current_user_can( 'edit_posts' );
-					},
-					'show_in_rest'      => true,
+					'auth_callback'     => '__return_false',
+					'show_in_rest'      => array(
+						'schema' => array(
+							'context' => array( 'edit' ),
+						),
+					),
 					'description'       => 'First authenticated publisher of the post',
 				)
 			);
