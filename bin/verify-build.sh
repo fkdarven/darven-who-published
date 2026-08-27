@@ -4,6 +4,7 @@ set -euo pipefail
 
 plugin_slug="darven-who-published"
 archive_path=${1:-}
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 fail() {
 	echo "Build verification failed: $1" >&2
@@ -14,7 +15,7 @@ if [ -z "$archive_path" ]; then
 	fail "usage: $0 <plugin-zip>"
 fi
 
-for command_name in grep sort unzip uniq zipinfo; do
+for command_name in awk grep php sha256sum sort unzip uniq zipinfo; do
 	if ! command -v "$command_name" >/dev/null 2>&1; then
 		fail "required command '$command_name' is unavailable"
 	fi
@@ -25,15 +26,19 @@ if [ ! -f "$archive_path" ]; then
 fi
 
 manifest_file=$(mktemp "/tmp/who-published-manifest-XXXXXX")
+installed_json_file=$(mktemp "/tmp/who-published-installed-json-XXXXXX")
+installed_php_file=$(mktemp "/tmp/who-published-installed-php-XXXXXX")
 cleanup() {
-	rm -f "$manifest_file"
+	rm -f "$manifest_file" "$installed_json_file" "$installed_php_file"
 }
 trap cleanup EXIT INT TERM
 
 if ! unzip -tqq "$archive_path" >/dev/null; then
 	fail "archive is corrupt or unreadable"
 fi
-unzip -Z1 "$archive_path" > "$manifest_file"
+if ! php "$script_dir/validate-zip-manifest.php" "$archive_path" > "$manifest_file"; then
+	fail "raw archive manifest validation failed"
+fi
 
 if [ ! -s "$manifest_file" ]; then
 	fail "archive is empty"
@@ -68,7 +73,7 @@ while IFS= read -r entry; do
 	fi
 
 	case "$relative_path" in
-		""|darven-who-published.php|readme.txt|assets|assets/|assets/*|languages|languages/|languages/*|src|src/|src/*|vendor|vendor/|vendor/autoload.php|vendor/composer|vendor/composer/|vendor/composer/*)
+		""|darven-who-published.php|readme.txt|assets|assets/|assets/*|languages|languages/|languages/*|src|src/|src/*|vendor|vendor/|vendor/autoload.php|vendor/composer|vendor/composer/|vendor/composer/ClassLoader.php|vendor/composer/InstalledVersions.php|vendor/composer/LICENSE|vendor/composer/autoload_classmap.php|vendor/composer/autoload_namespaces.php|vendor/composer/autoload_psr4.php|vendor/composer/autoload_real.php|vendor/composer/autoload_static.php|vendor/composer/installed.json|vendor/composer/installed.php)
 			;;
 		*)
 			fail "path is outside the approved production manifest: $entry"
@@ -96,6 +101,48 @@ require_tree "src"
 require_file "assets/css/admin.css"
 require_tree "languages"
 require_file "vendor/autoload.php"
+require_file "vendor/composer/ClassLoader.php"
+require_file "vendor/composer/InstalledVersions.php"
+require_file "vendor/composer/LICENSE"
+require_file "vendor/composer/autoload_classmap.php"
+require_file "vendor/composer/autoload_namespaces.php"
+require_file "vendor/composer/autoload_psr4.php"
+require_file "vendor/composer/autoload_real.php"
+require_file "vendor/composer/autoload_static.php"
+require_file "vendor/composer/installed.json"
+require_file "vendor/composer/installed.php"
+
+if ! unzip -p "$archive_path" "$plugin_slug/vendor/composer/installed.json" > "$installed_json_file"; then
+	fail "could not read Composer installed.json"
+fi
+# The single-quoted expression is PHP source.
+# shellcheck disable=SC2016
+if ! php -r '
+	try {
+		$data = json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR);
+	} catch (Throwable $error) {
+		exit(1);
+	}
+	if (
+		! is_array($data)
+		|| array() !== ($data["packages"] ?? null)
+		|| false !== ($data["dev"] ?? null)
+		|| array() !== ($data["dev-package-names"] ?? null)
+	) {
+		exit(1);
+	}
+' "$installed_json_file"; then
+	fail "Composer installed.json contains production packages or invalid metadata"
+fi
+
+if ! unzip -p "$archive_path" "$plugin_slug/vendor/composer/installed.php" > "$installed_php_file"; then
+	fail "could not read Composer installed.php"
+fi
+expected_installed_php_hash="daa1c7b63a9a93aa9a4841cdfef42c7db27914ccb7dcc00d81343a9cb89a949a"
+actual_installed_php_hash=$(sha256sum "$installed_php_file" | awk '{ print $1 }')
+if [ "$actual_installed_php_hash" != "$expected_installed_php_hash" ]; then
+	fail "installed.php does not match the Composer 2.10.2 root-only contract"
+fi
 
 for forbidden_path in \
 	.git \
