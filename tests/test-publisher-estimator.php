@@ -449,22 +449,22 @@ class Test_Publisher_Estimator extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_estimated_publisher_filter_rejects_the_complete_invalid_id_boundary( string $boundary_case ): void {
-		$existing_user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
-		$candidate        = $this->publisher_id_boundary_value( $boundary_case, $existing_user_id );
-		$posts            = $this->create_estimation_path_posts();
-		if ( 'overflow' === $boundary_case ) {
-			$cached_user     = clone get_userdata( $existing_user_id )->data;
-			$cached_user->ID = PHP_INT_MAX;
-			wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
-		}
-		add_filter(
-			'darven_who_published_estimated_publisher',
-			function () use ( $candidate ) {
-				return $candidate;
-			}
-		);
-
 		try {
+			$existing_user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+			$candidate        = $this->publisher_id_boundary_value( $boundary_case, $existing_user_id );
+			$posts            = $this->create_estimation_path_posts();
+			if ( 'overflow' === $boundary_case ) {
+				$cached_user     = clone get_userdata( $existing_user_id )->data;
+				$cached_user->ID = PHP_INT_MAX;
+				wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
+			}
+			add_filter(
+				'darven_who_published_estimated_publisher',
+				function () use ( $candidate ) {
+					return $candidate;
+				}
+			);
+
 			$retriever = new PublisherRetriever();
 			foreach ( $posts as $path => $post_id ) {
 				$identity = $retriever->get_publisher( get_post( $post_id ) );
@@ -476,6 +476,7 @@ class Test_Publisher_Estimator extends WP_UnitTestCase {
 		} finally {
 			if ( 'overflow' === $boundary_case ) {
 				wp_cache_delete( PHP_INT_MAX, 'users' );
+				wp_cache_delete( PHP_INT_MAX, 'user_meta' );
 			}
 		}
 	}

@@ -676,36 +676,36 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	 * @return void
 	 */
 	public function test_dropdown_rejects_the_complete_invalid_stored_id_boundary( string $boundary_case ): void {
-		$target_id  = self::factory()->user->create(
-			array(
-				'role'         => 'editor',
-				'display_name' => 'Rejected Boundary Publisher',
-			)
-		);
-		$control_id = self::factory()->user->create(
-			array(
-				'role'         => 'editor',
-				'display_name' => 'Accepted Boundary Control',
-			)
-		);
-		$control    = self::factory()->post->create();
-		update_post_meta( $control, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $control_id );
-		$candidate = $this->stored_publisher_id_boundary_value( $boundary_case, $target_id );
-
-		if ( 'overflow' === $boundary_case ) {
-			$cached_user               = clone get_userdata( $target_id )->data;
-			$cached_user->ID           = PHP_INT_MAX;
-			$cached_user->display_name = 'Rejected Boundary Publisher';
-			wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
-		}
-
-		foreach ( array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, '_darven_who_published_estimated_author', DARVEN_WHO_PUBLISHED_WAS_GUESSED ) as $meta_key ) {
-			$post_id = self::factory()->post->create();
-			$this->add_raw_publisher_meta( $post_id, $meta_key, $candidate );
-		}
-		update_option( 'darven_who_published_enable_estimation', true );
-
 		try {
+			$target_id  = self::factory()->user->create(
+				array(
+					'role'         => 'editor',
+					'display_name' => 'Rejected Boundary Publisher',
+				)
+			);
+			$control_id = self::factory()->user->create(
+				array(
+					'role'         => 'editor',
+					'display_name' => 'Accepted Boundary Control',
+				)
+			);
+			$control    = self::factory()->post->create();
+			update_post_meta( $control, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $control_id );
+			$candidate = $this->stored_publisher_id_boundary_value( $boundary_case, $target_id );
+
+			if ( 'overflow' === $boundary_case ) {
+				$cached_user               = clone get_userdata( $target_id )->data;
+				$cached_user->ID           = PHP_INT_MAX;
+				$cached_user->display_name = 'Rejected Boundary Publisher';
+				wp_cache_set( PHP_INT_MAX, $cached_user, 'users' );
+			}
+
+			foreach ( array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, '_darven_who_published_estimated_author', DARVEN_WHO_PUBLISHED_WAS_GUESSED ) as $meta_key ) {
+				$post_id = self::factory()->post->create();
+				$this->add_raw_publisher_meta( $post_id, $meta_key, $candidate );
+			}
+			update_option( 'darven_who_published_enable_estimation', true );
+
 			ob_start();
 			( new ColumnManager() )->add_filter_dropdown( 'post' );
 			$output = (string) ob_get_clean();
@@ -715,6 +715,7 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		} finally {
 			if ( 'overflow' === $boundary_case ) {
 				wp_cache_delete( PHP_INT_MAX, 'users' );
+				wp_cache_delete( PHP_INT_MAX, 'user_meta' );
 			}
 		}
 	}
@@ -766,6 +767,109 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		$output = (string) ob_get_clean();
 
 		$this->assertStringContainsString( 'value="' . $publisher_id . '" selected=', $output, $boundary_case );
+	}
+
+	/**
+	 * Pins malformed selected-publisher requests without altering an existing query.
+	 *
+	 * @dataProvider invalid_selected_publisher_id_cases
+	 * @param string $boundary_case Boundary case name.
+	 * @return void
+	 */
+	public function test_invalid_selected_publisher_requests_leave_dropdown_and_query_unchanged( string $boundary_case ): void {
+		try {
+			$publisher_id = self::factory()->user->create(
+				array(
+					'role'         => 'editor',
+					'display_name' => 'Unintended Request Publisher',
+				)
+			);
+			$eligible_id  = $publisher_id;
+			$candidate    = $this->selected_publisher_id_boundary_value( $boundary_case, $publisher_id );
+
+			if ( 'overflow' === $boundary_case ) {
+				$eligible_id               = PHP_INT_MAX;
+				$cached_user               = clone get_userdata( $publisher_id )->data;
+				$cached_user->ID           = $eligible_id;
+				$cached_user->display_name = 'Unintended Request Publisher';
+				wp_cache_set( $eligible_id, $cached_user, 'users' );
+			}
+
+			$post_id = self::factory()->post->create();
+			$this->add_raw_publisher_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, (string) $eligible_id );
+			$_GET['darven_who_published_filter']       = $candidate;
+			$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
+
+			$manager = new ColumnManager();
+			ob_start();
+			$manager->add_filter_dropdown( 'post' );
+			$output = (string) ob_get_clean();
+			$this->assertStringContainsString( 'Unintended Request Publisher', $output, $boundary_case );
+			$this->assertStringNotContainsString( 'value="' . $eligible_id . '" selected=', $output, $boundary_case );
+
+			$existing_meta_query = array(
+				'relation' => 'OR',
+				array(
+					'relation' => 'AND',
+					array(
+						'key'   => '_editorial_section',
+						'value' => 'newsroom',
+					),
+					array(
+						'key'   => '_workflow_state',
+						'value' => 'ready',
+					),
+				),
+				array(
+					'key'   => '_editorial_section',
+					'value' => 'investigations',
+				),
+			);
+			$query               = new WP_Query(
+				array(
+					'post_type'   => 'post',
+					'post_status' => 'publish',
+					'fields'      => 'ids',
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Deliberate nested fixture proves invalid publisher requests cannot alter an existing query.
+					'meta_query'  => $existing_meta_query,
+				)
+			);
+			global $wp_the_query;
+			$wp_the_query = $query;
+			$before       = $query->get( 'meta_query' );
+			$before_json  = wp_json_encode( $before );
+
+			$manager->apply_filter_query( $query );
+
+			$this->assertSame( $before, $query->get( 'meta_query' ), $boundary_case );
+			$this->assertSame( $before_json, wp_json_encode( $query->get( 'meta_query' ) ), $boundary_case );
+		} finally {
+			if ( 'overflow' === $boundary_case ) {
+				wp_cache_delete( PHP_INT_MAX, 'users' );
+				wp_cache_delete( PHP_INT_MAX, 'user_meta' );
+			}
+		}
+	}
+
+	/**
+	 * Provides malformed request representations accepted by PHP's query parser.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function invalid_selected_publisher_id_cases(): array {
+		return array(
+			'zero'             => array( 'zero' ),
+			'negative'         => array( 'negative' ),
+			'float'            => array( 'float' ),
+			'junk suffix'      => array( 'junk' ),
+			'leading zero'     => array( 'leading_zero' ),
+			'plus sign'        => array( 'plus_sign' ),
+			'whitespace'       => array( 'whitespace' ),
+			'exponent'         => array( 'exponent' ),
+			'integer overflow' => array( 'overflow' ),
+			'array'            => array( 'array' ),
+			'nested array'     => array( 'nested_array' ),
+		);
 	}
 
 	/**
@@ -924,5 +1028,41 @@ class Test_Column_Manager extends WP_UnitTestCase {
 		}
 
 		$this->fail( 'Unknown stored boundary case: ' . $boundary_case );
+	}
+
+	/**
+	 * Builds a malformed selected-request value relative to an eligible user ID.
+	 *
+	 * @param string $boundary_case    Boundary case name.
+	 * @param int    $existing_user_id Existing eligible user ID.
+	 * @return mixed
+	 */
+	private function selected_publisher_id_boundary_value( string $boundary_case, int $existing_user_id ) {
+		switch ( $boundary_case ) {
+			case 'zero':
+				return '0';
+			case 'negative':
+				return '-' . $existing_user_id;
+			case 'float':
+				return $existing_user_id . '.0';
+			case 'junk':
+				return $existing_user_id . 'junk';
+			case 'leading_zero':
+				return '0' . $existing_user_id;
+			case 'plus_sign':
+				return '+' . $existing_user_id;
+			case 'whitespace':
+				return $existing_user_id . ' ' . $existing_user_id;
+			case 'exponent':
+				return $existing_user_id . 'e0';
+			case 'overflow':
+				return (string) PHP_INT_MAX . '0';
+			case 'array':
+				return array( (string) $existing_user_id );
+			case 'nested_array':
+				return array( 'publisher' => array( (string) $existing_user_id ) );
+		}
+
+		$this->fail( 'Unknown selected-request boundary case: ' . $boundary_case );
 	}
 }
