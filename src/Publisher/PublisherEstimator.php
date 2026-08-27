@@ -28,13 +28,13 @@ class PublisherEstimator {
 	public function estimate( WP_Post $post ): PublisherIdentity {
 		$legacy_id = $this->metadata_user_id( $post->ID, DARVEN_WHO_PUBLISHED_WAS_GUESSED );
 		if ( $legacy_id > 0 ) {
-			return PublisherIdentity::estimated( $legacy_id, 'legacy' );
+			return $this->filter_estimate( PublisherIdentity::estimated( $legacy_id, 'legacy' ), $post );
 		}
 
 		$persisted_id     = $this->metadata_user_id( $post->ID, '_darven_who_published_estimated_author' );
 		$persisted_source = get_post_meta( $post->ID, '_darven_who_published_estimation_source', true );
 		if ( $persisted_id > 0 && in_array( $persisted_source, PublisherIdentity::estimation_sources(), true ) ) {
-			return PublisherIdentity::estimated( $persisted_id, $persisted_source );
+			return $this->filter_estimate( PublisherIdentity::estimated( $persisted_id, $persisted_source ), $post );
 		}
 
 		$identity = $this->first_computed_estimate( $post );
@@ -42,21 +42,39 @@ class PublisherEstimator {
 			return $identity;
 		}
 
-		$estimated_user_id = (int) apply_filters(
-			'darven_who_published_estimated_publisher',
-			$identity->user_id(),
-			$identity->source(),
-			$post
-		);
-		if ( $estimated_user_id <= 0 ) {
+		$identity = $this->filter_estimate( $identity, $post );
+		if ( PublisherIdentity::UNKNOWN === $identity->status() ) {
 			return PublisherIdentity::unknown();
 		}
 
-		$identity = PublisherIdentity::estimated( $estimated_user_id, $identity->source() );
 		update_post_meta( $post->ID, '_darven_who_published_estimated_author', $identity->user_id() );
 		update_post_meta( $post->ID, '_darven_who_published_estimation_source', $identity->source() );
 
 		return $identity;
+	}
+
+	/**
+	 * Applies the public estimate filter and accepts only existing WordPress users.
+	 *
+	 * @param PublisherIdentity $identity Estimated identity before filtering.
+	 * @param WP_Post           $post     Post being estimated.
+	 * @return PublisherIdentity
+	 */
+	private function filter_estimate( PublisherIdentity $identity, WP_Post $post ): PublisherIdentity {
+		$estimated_user_id = absint(
+			apply_filters(
+				'darven_who_published_estimated_publisher',
+				$identity->user_id(),
+				$identity->source(),
+				$post
+			)
+		);
+
+		if ( $estimated_user_id <= 0 || ! get_userdata( $estimated_user_id ) ) {
+			return PublisherIdentity::unknown();
+		}
+
+		return PublisherIdentity::estimated( $estimated_user_id, $identity->source() );
 	}
 
 	/**
