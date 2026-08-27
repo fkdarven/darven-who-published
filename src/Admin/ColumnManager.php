@@ -139,6 +139,11 @@ class ColumnManager {
 				'value' => $publisher_id,
 				'type'  => 'NUMERIC',
 			);
+			$publisher_query[] = array(
+				'key'   => DARVEN_WHO_PUBLISHED_WAS_GUESSED,
+				'value' => $publisher_id,
+				'type'  => 'NUMERIC',
+			);
 		}
 
 		$meta_query = $query->get( 'meta_query' );
@@ -176,6 +181,7 @@ class ColumnManager {
 		$meta_keys = array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR );
 		if ( $this->estimation_enabled() ) {
 			$meta_keys[] = '_darven_who_published_estimated_author';
+			$meta_keys[] = DARVEN_WHO_PUBLISHED_WAS_GUESSED;
 		}
 
 		$publisher_ids = array();

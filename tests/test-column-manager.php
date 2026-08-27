@@ -267,6 +267,75 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches legacy estimates being omitted from enabled post and page dropdowns.
+	 *
+	 * @return void
+	 */
+	public function test_legacy_estimates_join_post_and_page_dropdowns_only_when_enabled(): void {
+		$confirmed_id = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Confirmed Dropdown Publisher',
+			)
+		);
+		$estimated_id = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'New Estimated Dropdown Publisher',
+			)
+		);
+		$legacy_id    = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Legacy Dropdown Publisher',
+			)
+		);
+		$deleted_id   = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Deleted Dropdown Publisher',
+			)
+		);
+		$confirmed    = self::factory()->post->create( array( 'post_type' => 'post' ) );
+		$estimated    = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$legacy       = self::factory()->post->create( array( 'post_type' => 'post' ) );
+		$stale        = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		update_post_meta( $confirmed, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $confirmed_id );
+		update_post_meta( $estimated, '_darven_who_published_estimated_author', $estimated_id );
+		$this->add_legacy_publisher_meta( $legacy, $legacy_id );
+		$this->add_legacy_publisher_meta( $stale, $deleted_id );
+		wp_delete_user( $deleted_id );
+		update_option( 'darven_who_published_enable_estimation', true );
+
+		$manager = new ColumnManager();
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			ob_start();
+			$manager->add_filter_dropdown( $post_type );
+			$output = (string) ob_get_clean();
+
+			$this->assertSame( 1, substr_count( $output, 'Confirmed Dropdown Publisher' ), $post_type );
+			$this->assertSame( 1, substr_count( $output, 'New Estimated Dropdown Publisher' ), $post_type );
+			$this->assertSame( 1, substr_count( $output, 'Legacy Dropdown Publisher' ), $post_type );
+			$this->assertStringNotContainsString( 'Deleted Dropdown Publisher', $output, $post_type );
+		}
+
+		update_option( 'darven_who_published_enable_estimation', false );
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			ob_start();
+			$manager->add_filter_dropdown( $post_type );
+			$output = (string) ob_get_clean();
+
+			$this->assertStringContainsString( 'Confirmed Dropdown Publisher', $output, $post_type );
+			$this->assertStringNotContainsString( 'New Estimated Dropdown Publisher', $output, $post_type );
+			$this->assertStringNotContainsString( 'Legacy Dropdown Publisher', $output, $post_type );
+		}
+
+		$this->assertSame( (string) $legacy_id, get_post_meta( $legacy, DARVEN_WHO_PUBLISHED_WAS_GUESSED, true ) );
+		$this->assertSame( '', get_post_meta( $legacy, '_darven_who_published_estimated_author', true ) );
+		$this->assertSame( '', get_post_meta( $legacy, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true ) );
+	}
+
+	/**
 	 * Catches a selected publisher replacing existing meta filters or ignoring estimates.
 	 *
 	 * @return void
@@ -386,6 +455,144 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches legacy estimates being omitted from enabled post and page queries.
+	 *
+	 * @return void
+	 */
+	public function test_legacy_estimates_join_post_and_page_queries_without_flattening_existing_filters(): void {
+		$publisher_id       = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$other_publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$manager            = new ColumnManager();
+		update_option( 'darven_who_published_enable_estimation', true );
+
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			$confirmed = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$estimated = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$legacy    = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$wrong     = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$excluded  = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			foreach ( array( $confirmed, $estimated, $legacy, $wrong ) as $post_id ) {
+				update_post_meta( $post_id, '_editorial_section', 'newsroom' );
+			}
+			update_post_meta( $confirmed, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+			update_post_meta( $estimated, '_darven_who_published_estimated_author', $publisher_id );
+			$this->add_legacy_publisher_meta( $legacy, $publisher_id );
+			$this->add_legacy_publisher_meta( $wrong, $other_publisher_id );
+			$this->add_legacy_publisher_meta( $excluded, $publisher_id );
+			update_post_meta( $excluded, '_editorial_section', 'opinion' );
+			$_GET['darven_who_published_filter']       = (string) $publisher_id;
+			$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
+
+			$query = new WP_Query(
+				array(
+					'post_type'   => $post_type,
+					'post_status' => 'publish',
+					'fields'      => 'ids',
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Deliberate integration fixture verifies that the publisher OR remains nested beneath an existing OR.
+					'meta_query'  => array(
+						'relation' => 'OR',
+						array(
+							'key'   => '_editorial_section',
+							'value' => 'newsroom',
+						),
+						array(
+							'key'   => '_editorial_section',
+							'value' => 'investigations',
+						),
+					),
+				)
+			);
+			global $wp_the_query;
+			$wp_the_query = $query;
+			$manager->apply_filter_query( $query );
+			$filtered = new WP_Query( $query->query_vars );
+
+			$this->assertEqualSets( array( $confirmed, $estimated, $legacy ), $filtered->posts, $post_type );
+			$this->assertSame( 'AND', $filtered->get( 'meta_query' )['relation'], $post_type );
+			$this->assertSame( 'OR', $filtered->get( 'meta_query' )[0]['relation'], $post_type );
+			$this->assertSame( 'OR', $filtered->get( 'meta_query' )[1]['relation'], $post_type );
+			$this->assertCount( 4, $filtered->get( 'meta_query' )[1], $post_type );
+			$this->assertSame( '', get_post_meta( $legacy, '_darven_who_published_estimated_author', true ) );
+			$this->assertSame( '', get_post_meta( $legacy, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, true ) );
+		}
+	}
+
+	/**
+	 * Catches disabled estimation queries matching new or legacy estimate metadata.
+	 *
+	 * @return void
+	 */
+	public function test_disabled_estimation_excludes_new_and_legacy_estimates_for_posts_and_pages(): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$manager      = new ColumnManager();
+
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			$confirmed = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$estimated = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			$legacy    = self::factory()->post->create(
+				array(
+					'post_status' => 'publish',
+					'post_type'   => $post_type,
+				)
+			);
+			update_post_meta( $confirmed, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+			update_post_meta( $estimated, '_darven_who_published_estimated_author', $publisher_id );
+			$this->add_legacy_publisher_meta( $legacy, $publisher_id );
+			$_GET['darven_who_published_filter']       = (string) $publisher_id;
+			$_GET['darven_who_published_filter_nonce'] = wp_create_nonce( 'darven_who_published_filter_action' );
+
+			$query = new WP_Query(
+				array(
+					'post_type'   => $post_type,
+					'post_status' => 'publish',
+					'fields'      => 'ids',
+				)
+			);
+			global $wp_the_query;
+			$wp_the_query = $query;
+			$manager->apply_filter_query( $query );
+			$filtered = new WP_Query( $query->query_vars );
+
+			$this->assertSame( array( $confirmed ), $filtered->posts, $post_type );
+		}
+	}
+
+	/**
 	 * Catches nonce-valid arbitrary IDs that add a publisher condition without being eligible options.
 	 *
 	 * @return void
@@ -443,5 +650,27 @@ class Test_Column_Manager extends WP_UnitTestCase {
 			$this->assertTrue( wp_style_is( 'darven-who-published-admin', 'enqueued' ), $screen_id );
 			$this->assertSame( DARVEN_WHO_PUBLISHED_VERSION, wp_styles()->registered['darven-who-published-admin']->ver, $screen_id );
 		}
+	}
+
+	/**
+	 * Inserts an integer legacy estimate without boolean meta sanitization.
+	 *
+	 * @param int $post_id      Post ID.
+	 * @param int $publisher_id Legacy estimated publisher ID.
+	 * @return void
+	 */
+	private function add_legacy_publisher_meta( int $post_id, int $publisher_id ): void {
+		global $wpdb;
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Simulates the legacy integer schema before its boolean registration.
+		$wpdb->insert(
+			$wpdb->postmeta,
+			array(
+				'post_id'    => $post_id,
+				'meta_key'   => DARVEN_WHO_PUBLISHED_WAS_GUESSED,
+				'meta_value' => $publisher_id,
+			)
+		);
+		// phpcs:enable
+		wp_cache_delete( $post_id, 'post_meta' );
 	}
 }
