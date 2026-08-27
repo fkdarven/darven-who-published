@@ -74,6 +74,86 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches the generic post-column hook leaking Published by into unsupported post types.
+	 *
+	 * @return void
+	 */
+	public function test_started_column_hooks_only_add_published_by_to_posts_and_pages(): void {
+		( new ColumnManager() )->start();
+		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-posts-list-table.php';
+
+		register_post_type(
+			'book',
+			array(
+				'public'       => true,
+				'show_ui'      => true,
+				'show_in_menu' => true,
+				'supports'     => array( 'title', 'author' ),
+			)
+		);
+
+		$columns_by_type = array();
+		foreach ( array( 'post', 'page', 'book' ) as $post_type ) {
+			set_current_screen( 'edit-' . $post_type );
+			$list_table = new WP_Posts_List_Table( array( 'screen' => get_current_screen() ) );
+
+			$columns_by_type[ $post_type ] = $list_table->get_columns();
+		}
+
+		$post_keys = array_keys( $columns_by_type['post'] );
+		$page_keys = array_keys( $columns_by_type['page'] );
+
+		$this->assertSame( array_search( 'author', $post_keys, true ) + 1, array_search( 'darven_who_published', $post_keys, true ) );
+		$this->assertSame( array_search( 'author', $page_keys, true ) + 1, array_search( 'darven_who_published', $page_keys, true ) );
+		$this->assertArrayNotHasKey( 'darven_who_published', $columns_by_type['book'] );
+	}
+
+	/**
+	 * Catches generic custom-column rendering hooks leaking publisher output into unsupported post types.
+	 *
+	 * @return void
+	 */
+	public function test_started_renderer_hooks_only_output_for_posts_and_pages(): void {
+		( new ColumnManager() )->start();
+		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-posts-list-table.php';
+		register_post_type(
+			'book',
+			array(
+				'public'  => true,
+				'show_ui' => true,
+			)
+		);
+
+		$post_id = self::factory()->post->create( array( 'post_type' => 'post' ) );
+		$page_id = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$book_id = self::factory()->post->create( array( 'post_type' => 'book' ) );
+
+		set_current_screen( 'edit-post' );
+		$list_table = new WP_Posts_List_Table( array( 'screen' => get_current_screen() ) );
+		ob_start();
+		$list_table->column_default( get_post( $post_id ), 'darven_who_published' );
+		$post_output = (string) ob_get_clean();
+
+		set_current_screen( 'edit-page' );
+		$list_table = new WP_Posts_List_Table( array( 'screen' => get_current_screen() ) );
+		ob_start();
+		$list_table->column_default( get_post( $page_id ), 'darven_who_published' );
+		$page_output = (string) ob_get_clean();
+
+		set_current_screen( 'edit-book' );
+		$list_table = new WP_Posts_List_Table( array( 'screen' => get_current_screen() ) );
+		ob_start();
+		$list_table->column_default( get_post( $book_id ), 'darven_who_published' );
+		$book_output = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'darven-publisher-unknown', $post_output );
+		$this->assertStringContainsString( 'darven-publisher-unknown', $page_output );
+		$this->assertSame( '', $book_output );
+	}
+
+	/**
 	 * Catches confirmed rendering without a safe user edit link and state treatment.
 	 *
 	 * @return void

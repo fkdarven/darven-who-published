@@ -27,10 +27,10 @@ class ColumnManager {
 	 * @return void
 	 */
 	public function start(): void {
-		add_filter( 'manage_posts_columns', array( $this, 'add_post_column' ) );
-		add_action( 'manage_posts_custom_column', array( $this, 'handle_column_data' ), 10, 2 );
-		add_filter( 'manage_pages_columns', array( $this, 'add_post_column' ) );
-		add_action( 'manage_pages_custom_column', array( $this, 'handle_column_data' ), 10, 2 );
+		add_filter( 'manage_post_posts_columns', array( $this, 'add_post_column' ) );
+		add_action( 'manage_post_posts_custom_column', array( $this, 'handle_column_data' ), 10, 2 );
+		add_filter( 'manage_page_posts_columns', array( $this, 'add_post_column' ) );
+		add_action( 'manage_page_posts_custom_column', array( $this, 'handle_column_data' ), 10, 2 );
 		add_action( 'restrict_manage_posts', array( $this, 'add_filter_dropdown' ) );
 		add_action( 'pre_get_posts', array( $this, 'apply_filter_query' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_styles' ) );
