@@ -14,6 +14,5 @@
 /.wp-env.json
 /phpcs.xml.dist
 /phpunit.xml.dist
-/composer.json
 /composer.lock
 /README.md

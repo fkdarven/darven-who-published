@@ -21,7 +21,7 @@ fail() {
 	return 1
 }
 
-for command_name in basename chmod composer cp dd find git grep ln php rsync sed unzip zip; do
+for command_name in basename chmod cmp composer cp dd find git grep ln php rsync sed unzip zip; do
 	if ! command -v "$command_name" >/dev/null 2>&1; then
 		echo "Release-tool tests require '$command_name'." >&2
 		exit 1
@@ -552,6 +552,127 @@ test_untracked_files_are_excluded() {
 		fail "clean tracked-file archive failed verification"
 		return 1
 	fi
+}
+
+test_ci_uses_node24_actions() {
+	local workflow="$project_root/.github/workflows/ci.yml"
+	local checkout_pin='actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
+	local upload_pin='actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'
+
+	if ! grep -Fqx "        uses: $checkout_pin" "$workflow"; then
+		fail "CI checkout action is not pinned to the Node.js 24 release"
+		return 1
+	fi
+	if ! grep -Fqx "        uses: $upload_pin" "$workflow"; then
+		fail "CI artifact action is not pinned to the Node.js 24 release"
+		return 1
+	fi
+}
+
+test_plugin_check_keeps_read_only_permissions_without_comment_attempts() {
+	local workflow="$project_root/.github/workflows/ci.yml"
+
+	if ! grep -Fqx '  contents: read' "$workflow"; then
+		fail "CI no longer declares read-only contents permission"
+		return 1
+	fi
+	if ! grep -Fqx "          repo-token: ''" "$workflow"; then
+		fail "Plugin Check is not configured to skip optional PR comments"
+		return 1
+	fi
+}
+
+test_distignore_keeps_production_composer_manifest() {
+	if grep -Fqx '/composer.json' "$project_root/.distignore"; then
+		fail ".distignore still removes the production composer.json manifest"
+		return 1
+	fi
+}
+
+test_release_contains_exact_composer_manifest() {
+	local fixture_path
+	local archive
+	local archived_composer="$test_root/archive-composer.json"
+	if ! fixture_path=$(new_fixture composer-manifest); then
+		return 1
+	fi
+	archive=$(archive_path "$fixture_path")
+
+	if ! build_fixture "$fixture_path" "$test_root/composer-manifest-build.log"; then
+		fail "baseline Composer-manifest build failed"
+		return 1
+	fi
+	if ! unzip -p "$archive" "$plugin_slug/composer.json" > "$archived_composer"; then
+		fail "production archive does not contain composer.json"
+		return 1
+	fi
+	if ! cmp -s "$fixture_path/composer.json" "$archived_composer"; then
+		fail "production composer.json differs from the tracked source manifest"
+		return 1
+	fi
+	if ! run_archive_verifier "$fixture_path" "$archive" >/dev/null; then
+		fail "archive containing the tracked Composer manifest failed verification"
+		return 1
+	fi
+}
+
+test_missing_composer_manifest_is_rejected() {
+	local fixture_path
+	local archive
+	local unpacked="$test_root/missing-composer-unpacked"
+	local malicious_archive="$test_root/missing-composer.zip"
+	if ! fixture_path=$(new_fixture missing-composer); then
+		return 1
+	fi
+	archive=$(archive_path "$fixture_path")
+
+	if ! build_fixture "$fixture_path" "$test_root/missing-composer-build.log"; then
+		fail "baseline missing-Composer build failed"
+		return 1
+	fi
+	if ! extract_archive_fixture "$archive" "$unpacked"; then
+		return 1
+	fi
+	rm -f "$unpacked/$plugin_slug/composer.json"
+	if ! create_mutated_archive "$unpacked" "$malicious_archive"; then
+		return 1
+	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"required file is missing: $plugin_slug/composer.json" \
+		"verifier accepted an archive without composer.json"
+}
+
+test_modified_composer_manifest_is_rejected() {
+	local fixture_path
+	local archive
+	local unpacked="$test_root/modified-composer-unpacked"
+	local malicious_archive="$test_root/modified-composer.zip"
+	if ! fixture_path=$(new_fixture modified-composer); then
+		return 1
+	fi
+	archive=$(archive_path "$fixture_path")
+
+	if ! build_fixture "$fixture_path" "$test_root/modified-composer-build.log"; then
+		fail "baseline modified-Composer build failed"
+		return 1
+	fi
+	if ! extract_archive_fixture "$archive" "$unpacked"; then
+		return 1
+	fi
+	if ! printf '%s\n' '{"name":"attacker/replaced-manifest"}' > "$unpacked/$plugin_slug/composer.json"; then
+		fail "could not create modified composer.json fixture"
+		return 1
+	fi
+	if ! create_mutated_archive "$unpacked" "$malicious_archive"; then
+		return 1
+	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"composer.json does not match the tracked source manifest" \
+		"verifier accepted a modified composer.json"
 }
 
 test_untracked_source_symlink_is_rejected() {
@@ -1122,6 +1243,12 @@ if ! create_base_fixture; then
 	echo "Release-tool fixture setup failed." >&2
 	exit 1
 fi
+run_test "CI actions use Node.js 24 releases" test_ci_uses_node24_actions
+run_test "Plugin Check skips optional PR comments" test_plugin_check_keeps_read_only_permissions_without_comment_attempts
+run_test ".distignore keeps the production Composer manifest" test_distignore_keeps_production_composer_manifest
+run_test "release contains the tracked Composer manifest" test_release_contains_exact_composer_manifest
+run_test "missing Composer manifests are rejected" test_missing_composer_manifest_is_rejected
+run_test "modified Composer manifests are rejected" test_modified_composer_manifest_is_rejected
 run_test "untracked files are excluded" test_untracked_files_are_excluded
 run_test "untracked source symlinks are rejected" test_untracked_source_symlink_is_rejected
 run_test "tracked symlink modes are rejected" test_tracked_symlink_mode_is_rejected

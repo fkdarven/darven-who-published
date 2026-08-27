@@ -148,7 +148,9 @@ for build_input in composer.json composer.lock; do
 	fi
 done
 
-# Composer's manifests are needed only while generating the production autoloader.
+# Composer's manifests generate the production autoloader. Keep composer.json
+# in the package so consumers and Plugin Check can identify the vendor tree;
+# composer.lock remains a development-only build input.
 cp "$project_root/composer.json" "$project_root/composer.lock" "$stage_plugin/"
 COMPOSER_ROOT_VERSION="$plugin_version" composer install \
 	--working-dir="$stage_plugin" \
@@ -157,7 +159,7 @@ COMPOSER_ROOT_VERSION="$plugin_version" composer install \
 	--no-interaction \
 	--no-progress \
 	--prefer-dist
-rm "$stage_plugin/composer.json" "$stage_plugin/composer.lock"
+rm "$stage_plugin/composer.lock"
 
 # Composer output is untrusted until it passes the same path/link boundary.
 while IFS= read -r -d '' staged_path; do
