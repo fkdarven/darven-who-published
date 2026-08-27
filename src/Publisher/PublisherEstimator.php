@@ -61,7 +61,7 @@ class PublisherEstimator {
 	 * @return PublisherIdentity
 	 */
 	private function filter_estimate( PublisherIdentity $identity, WP_Post $post ): PublisherIdentity {
-		$estimated_user_id = absint(
+		$estimated_user_id = $this->positive_user_id(
 			apply_filters(
 				'darven_who_published_estimated_publisher',
 				$identity->user_id(),
@@ -110,6 +110,26 @@ class PublisherEstimator {
 	 * @return int
 	 */
 	private function metadata_user_id( int $post_id, string $meta_key ): int {
-		return absint( get_post_meta( $post_id, $meta_key, true ) );
+		return $this->positive_user_id( get_post_meta( $post_id, $meta_key, true ) );
+	}
+
+	/**
+	 * Accepts only canonical positive integer IDs or their decimal string form.
+	 *
+	 * @param mixed $candidate Candidate user ID.
+	 * @return int
+	 */
+	private function positive_user_id( $candidate ): int {
+		if ( is_int( $candidate ) ) {
+			return $candidate > 0 ? $candidate : 0;
+		}
+
+		if ( ! is_string( $candidate ) || ! preg_match( '/^[1-9][0-9]*$/D', $candidate ) ) {
+			return 0;
+		}
+
+		$user_id = (int) $candidate;
+
+		return (string) $user_id === $candidate ? $user_id : 0;
 	}
 }

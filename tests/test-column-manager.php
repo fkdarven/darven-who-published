@@ -635,6 +635,78 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches negative metadata values being normalized into valid dropdown users.
+	 *
+	 * @return void
+	 */
+	public function test_negative_publisher_metadata_never_adds_its_absolute_user_to_the_dropdown(): void {
+		$negative_id = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Negative Metadata Publisher',
+			)
+		);
+		$control_id  = self::factory()->user->create(
+			array(
+				'role'         => 'editor',
+				'display_name' => 'Valid Metadata Publisher',
+			)
+		);
+		$control     = self::factory()->post->create();
+		update_post_meta( $control, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $control_id );
+		foreach ( array( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, '_darven_who_published_estimated_author', DARVEN_WHO_PUBLISHED_WAS_GUESSED ) as $meta_key ) {
+			$post_id = self::factory()->post->create();
+			$this->add_raw_publisher_meta( $post_id, $meta_key, -$negative_id );
+		}
+		update_option( 'darven_who_published_enable_estimation', true );
+
+		ob_start();
+		( new ColumnManager() )->add_filter_dropdown( 'post' );
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Valid Metadata Publisher', $output );
+		$this->assertStringNotContainsString( 'Negative Metadata Publisher', $output );
+	}
+
+	/**
+	 * Catches publisher discovery issuing one metadata query per key.
+	 *
+	 * @return void
+	 */
+	public function test_filter_dropdown_discovers_metadata_with_one_prepared_in_query(): void {
+		$publisher_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$post_id      = self::factory()->post->create();
+		update_post_meta( $post_id, DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $publisher_id );
+
+		foreach ( array( false, true ) as $estimation_enabled ) {
+			update_option( 'darven_who_published_enable_estimation', $estimation_enabled );
+			$discovery_queries = array();
+			$query_recorder    = function ( $sql ) use ( &$discovery_queries ) {
+				if ( false !== strpos( $sql, 'SELECT DISTINCT meta_value' ) && false !== strpos( $sql, 'meta_key IN (' ) ) {
+					$discovery_queries[] = $sql;
+				}
+				return $sql;
+			};
+			add_filter( 'query', $query_recorder );
+
+			ob_start();
+			( new ColumnManager() )->add_filter_dropdown( 'post' );
+			ob_end_clean();
+
+			remove_filter( 'query', $query_recorder );
+			$this->assertCount( 1, $discovery_queries, $estimation_enabled ? 'enabled' : 'disabled' );
+			$this->assertStringContainsString( DARVEN_WHO_PUBLISHED_ORIGINAL_AUTHOR, $discovery_queries[0] );
+			if ( $estimation_enabled ) {
+				$this->assertStringContainsString( '_darven_who_published_estimated_author', $discovery_queries[0] );
+				$this->assertStringContainsString( DARVEN_WHO_PUBLISHED_WAS_GUESSED, $discovery_queries[0] );
+			} else {
+				$this->assertStringNotContainsString( '_darven_who_published_estimated_author', $discovery_queries[0] );
+				$this->assertStringNotContainsString( DARVEN_WHO_PUBLISHED_WAS_GUESSED, $discovery_queries[0] );
+			}
+		}
+	}
+
+	/**
 	 * Catches editor screens that render publisher badges without the registered stylesheet.
 	 *
 	 * @return void
@@ -660,14 +732,26 @@ class Test_Column_Manager extends WP_UnitTestCase {
 	 * @return void
 	 */
 	private function add_legacy_publisher_meta( int $post_id, int $publisher_id ): void {
+		$this->add_raw_publisher_meta( $post_id, DARVEN_WHO_PUBLISHED_WAS_GUESSED, $publisher_id );
+	}
+
+	/**
+	 * Inserts raw publisher metadata without registered-meta sanitization.
+	 *
+	 * @param int    $post_id   Post ID.
+	 * @param string $meta_key  Publisher metadata key.
+	 * @param mixed  $meta_value Raw metadata value.
+	 * @return void
+	 */
+	private function add_raw_publisher_meta( int $post_id, string $meta_key, $meta_value ): void {
 		global $wpdb;
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Simulates the legacy integer schema before its boolean registration.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Simulates raw historical or malformed metadata that bypassed registered-meta sanitization.
 		$wpdb->insert(
 			$wpdb->postmeta,
 			array(
 				'post_id'    => $post_id,
-				'meta_key'   => DARVEN_WHO_PUBLISHED_WAS_GUESSED,
-				'meta_value' => $publisher_id,
+				'meta_key'   => $meta_key,
+				'meta_value' => $meta_value,
 			)
 		);
 		// phpcs:enable

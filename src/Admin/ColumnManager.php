@@ -184,21 +184,31 @@ class ColumnManager {
 			$meta_keys[] = DARVEN_WHO_PUBLISHED_WAS_GUESSED;
 		}
 
-		$publisher_ids = array();
-		foreach ( $meta_keys as $meta_key ) {
-			// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Distinct metadata values cannot be queried efficiently through WP_Query.
-			$ids = $wpdb->get_col(
-				$wpdb->prepare(
-					"SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s",
-					$meta_key
-				)
+		if ( 1 === count( $meta_keys ) ) {
+			$publisher_query = $wpdb->prepare(
+				"SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key IN (%s)",
+				$meta_keys[0]
 			);
-			// phpcs:enable
-			foreach ( $ids as $publisher_id ) {
-				$publisher_id = absint( $publisher_id );
-				if ( $publisher_id > 0 ) {
-					$publisher_ids[] = $publisher_id;
-				}
+		} else {
+			$publisher_query = $wpdb->prepare(
+				"SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key IN (%s, %s, %s)",
+				$meta_keys[0],
+				$meta_keys[1],
+				$meta_keys[2]
+			);
+		}
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Both settings branches prepare this query immediately above; distinct metadata values cannot be queried efficiently through WP_Query.
+		$ids = $wpdb->get_col(
+			$publisher_query
+		);
+		// phpcs:enable
+
+		$publisher_ids = array();
+		foreach ( $ids as $publisher_id ) {
+			$publisher_id = $this->positive_user_id( $publisher_id );
+			if ( $publisher_id > 0 ) {
+				$publisher_ids[] = $publisher_id;
 			}
 		}
 
@@ -231,7 +241,7 @@ class ColumnManager {
 			return 0;
 		}
 
-		$publisher_id = absint( wp_unslash( $_GET['darven_who_published_filter'] ) );
+		$publisher_id = $this->positive_user_id( sanitize_text_field( wp_unslash( $_GET['darven_who_published_filter'] ) ) );
 
 		return in_array( $publisher_id, $eligible_ids, true ) ? $publisher_id : 0;
 	}
@@ -243,5 +253,25 @@ class ColumnManager {
 	 */
 	private function estimation_enabled(): bool {
 		return rest_sanitize_boolean( get_option( 'darven_who_published_enable_estimation', false ) );
+	}
+
+	/**
+	 * Accepts only canonical positive integer IDs or their decimal string form.
+	 *
+	 * @param mixed $candidate Candidate user ID.
+	 * @return int
+	 */
+	private function positive_user_id( $candidate ): int {
+		if ( is_int( $candidate ) ) {
+			return $candidate > 0 ? $candidate : 0;
+		}
+
+		if ( ! is_string( $candidate ) || ! preg_match( '/^[1-9][0-9]*$/D', $candidate ) ) {
+			return 0;
+		}
+
+		$user_id = (int) $candidate;
+
+		return (string) $user_id === $candidate ? $user_id : 0;
 	}
 }

@@ -349,6 +349,99 @@ class Test_Publisher_Estimator extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Catches negative filter results being normalized into an existing user ID.
+	 *
+	 * @return void
+	 */
+	public function test_estimated_publisher_filter_rejects_negative_existing_user_on_every_estimate_path(): void {
+		$negative_user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$legacy_id        = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$persisted_id     = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$computed_id      = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$legacy_post      = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		$stored_post      = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		$new_post         = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		global $wpdb;
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Simulates the legacy integer schema before its boolean registration.
+		$wpdb->insert(
+			$wpdb->postmeta,
+			array(
+				'post_id'    => $legacy_post,
+				'meta_key'   => DARVEN_WHO_PUBLISHED_WAS_GUESSED,
+				'meta_value' => $legacy_id,
+			)
+		);
+		// phpcs:enable
+		wp_cache_delete( $legacy_post, 'post_meta' );
+		update_post_meta( $stored_post, '_darven_who_published_estimated_author', $persisted_id );
+		update_post_meta( $stored_post, '_darven_who_published_estimation_source', 'latest_revision' );
+		update_post_meta( $new_post, '_edit_last', $computed_id );
+		add_filter(
+			'darven_who_published_estimated_publisher',
+			function () use ( $negative_user_id ) {
+				return -$negative_user_id;
+			}
+		);
+
+		$retriever = new PublisherRetriever();
+		foreach ( array( $legacy_post, $stored_post, $new_post ) as $post_id ) {
+			$identity = $retriever->get_publisher( get_post( $post_id ) );
+			$this->assertSame( 'unknown', $identity->status(), (string) $post_id );
+			$this->assertSame( 0, $identity->user_id(), (string) $post_id );
+		}
+		$this->assertSame( '', get_post_meta( $new_post, '_darven_who_published_estimated_author', true ) );
+		$this->assertSame( '', get_post_meta( $new_post, '_darven_who_published_estimation_source', true ) );
+	}
+
+	/**
+	 * Catches float and junk filter outputs being truncated into existing user IDs.
+	 *
+	 * @return void
+	 */
+	public function test_estimated_publisher_filter_rejects_float_and_junk_outputs(): void {
+		$existing_user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+
+		foreach ( array( (float) $existing_user_id, $existing_user_id . 'junk', $existing_user_id . '.0' ) as $invalid_output ) {
+			$post_id = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+			update_post_meta( $post_id, '_edit_last', $existing_user_id );
+			$filter = function () use ( $invalid_output ) {
+				return $invalid_output;
+			};
+			add_filter( 'darven_who_published_estimated_publisher', $filter );
+
+			$identity = ( new PublisherRetriever() )->get_publisher( get_post( $post_id ) );
+
+			$this->assertSame( 'unknown', $identity->status(), gettype( $invalid_output ) . ':' . (string) $invalid_output );
+			$this->assertSame( '', get_post_meta( $post_id, '_darven_who_published_estimated_author', true ) );
+			remove_filter( 'darven_who_published_estimated_publisher', $filter );
+		}
+	}
+
+	/**
+	 * Catches canonical numeric-string user IDs being rejected by strict validation.
+	 *
+	 * @return void
+	 */
+	public function test_estimated_publisher_filter_accepts_a_positive_numeric_string_user_id(): void {
+		$override_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$evidence_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$post_id     = self::factory()->post->create( array( 'post_status' => 'publish' ) );
+		update_post_meta( $post_id, '_edit_last', $evidence_id );
+		add_filter(
+			'darven_who_published_estimated_publisher',
+			function () use ( $override_id ) {
+				return (string) $override_id;
+			}
+		);
+
+		$identity = ( new PublisherRetriever() )->get_publisher( get_post( $post_id ) );
+
+		$this->assertSame( 'estimated', $identity->status() );
+		$this->assertSame( $override_id, $identity->user_id() );
+		$this->assertSame( (string) $override_id, get_post_meta( $post_id, '_darven_who_published_estimated_author', true ) );
+	}
+
+	/**
 	 * Catches registration that exposes estimation internals or omits pages.
 	 *
 	 * @return void
