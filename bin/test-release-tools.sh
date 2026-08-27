@@ -21,7 +21,7 @@ fail() {
 	return 1
 }
 
-for command_name in chmod composer cp dd git ln php rsync unzip zip; do
+for command_name in basename chmod composer cp dd find git grep ln php rsync sed unzip zip; do
 	if ! command -v "$command_name" >/dev/null 2>&1; then
 		echo "Release-tool tests require '$command_name'." >&2
 		exit 1
@@ -164,6 +164,9 @@ create_mutated_archive() {
 	local unpacked=$1
 	local malicious_archive=$2
 
+	if ! canonicalize_fixture_tree "$unpacked/$plugin_slug"; then
+		return 1
+	fi
 	if ! (
 		cd "$unpacked" || exit 1
 		zip -X -qr "$malicious_archive" "$plugin_slug"
@@ -177,6 +180,35 @@ create_mutated_archive() {
 	fi
 	if ! unzip -tqq "$malicious_archive"; then
 		fail "malicious archive failed ZIP integrity: $malicious_archive"
+		return 1
+	fi
+}
+
+canonicalize_fixture_tree() {
+	local fixture_tree=$1
+
+	if [ ! -d "$fixture_tree" ]; then
+		fail "fixture tree is missing: $fixture_tree"
+		return 1
+	fi
+	if find -P "$fixture_tree" -type l -print -quit | grep -q .; then
+		fail "fixture tree contains a symlink: $fixture_tree"
+		return 1
+	fi
+	if ! find -P "$fixture_tree" -type d -exec chmod 0755 {} +; then
+		fail "could not canonicalize fixture directory modes"
+		return 1
+	fi
+	if ! find -P "$fixture_tree" -type f -exec chmod 0644 {} +; then
+		fail "could not canonicalize fixture file modes"
+		return 1
+	fi
+	if find -P "$fixture_tree" -type d ! -perm 0755 -print -quit | grep -q .; then
+		fail "fixture directory modes are not exactly 0755"
+		return 1
+	fi
+	if find -P "$fixture_tree" -type f ! -perm 0644 -print -quit | grep -q .; then
+		fail "fixture file modes are not exactly 0644"
 		return 1
 	fi
 }
@@ -259,7 +291,9 @@ mutate_raw_archive() {
 						$changed = true;
 					}
 					if ("overlap" === $mutation && ! $changed && $compressed_size > 0) {
+						$local_offset = $u32($data, $cursor + 42);
 						$data = substr_replace($data, pack("V", $compressed_size + 1), $cursor + 20, 4);
+						$data = substr_replace($data, pack("V", $compressed_size + 1), $local_offset + 18, 4);
 						$changed = true;
 					}
 					$cursor += 46 + $name_length + $extra_length + $comment_length;
@@ -404,6 +438,31 @@ run_manifest_validator() {
 	php "$validator" "$archive"
 }
 
+expect_manifest_validator_rejection() {
+	local fixture_path=$1
+	local archive=$2
+	local expected_diagnostic=$3
+	local accepted_message=$4
+	local stderr_log
+	local validator_status
+	stderr_log="$test_root/$(basename "$archive").validator.stderr.log"
+
+	if run_manifest_validator "$fixture_path" "$archive" >/dev/null 2> "$stderr_log"; then
+		fail "$accepted_message"
+		return 1
+	else
+		validator_status=$?
+	fi
+	if [ 99 -eq "$validator_status" ]; then
+		return 1
+	fi
+	if ! grep -Fq -- "$expected_diagnostic" "$stderr_log"; then
+		fail "raw validator rejected $(basename "$archive") for the wrong reason; expected: $expected_diagnostic"
+		sed -n '1,4p' "$stderr_log" >&2
+		return 1
+	fi
+}
+
 run_archive_verifier() {
 	local fixture_path=$1
 	local archive=$2
@@ -419,12 +478,24 @@ run_archive_verifier() {
 expect_archive_verifier_rejection() {
 	local fixture_path=$1
 	local archive=$2
-	local accepted_message=$3
+	local expected_diagnostic=$3
+	local accepted_message=$4
+	local stderr_log
+	local verifier_status
+	stderr_log="$test_root/$(basename "$archive").stderr.log"
 
-	if run_archive_verifier "$fixture_path" "$archive" >/dev/null 2>&1; then
+	if run_archive_verifier "$fixture_path" "$archive" >/dev/null 2> "$stderr_log"; then
 		fail "$accepted_message"
 		return 1
-	elif [ 99 -eq "$?" ]; then
+	else
+		verifier_status=$?
+	fi
+	if [ 99 -eq "$verifier_status" ]; then
+		return 1
+	fi
+	if ! grep -Fq -- "$expected_diagnostic" "$stderr_log"; then
+		fail "verifier rejected $(basename "$archive") for the wrong reason; expected: $expected_diagnostic"
+		sed -n '1,4p' "$stderr_log" >&2
 		return 1
 	fi
 }
@@ -594,12 +665,11 @@ test_unapproved_vendor_package_is_rejected() {
 	if ! assert_raw_archive_entry_nonempty "$malicious_archive" "$raw_name"; then
 		return 1
 	fi
-	if run_archive_verifier "$fixture_path" "$malicious_archive" >/dev/null 2>&1; then
-		fail "verifier accepted an unapproved vendor package"
-		return 1
-	elif [ 99 -eq "$?" ]; then
-		return 1
-	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"path is outside the approved production manifest" \
+		"verifier accepted an unapproved vendor package"
 }
 
 test_raw_control_archive_is_rejected() {
@@ -630,12 +700,11 @@ test_raw_control_archive_is_rejected() {
 	if ! assert_raw_archive_entry_nonempty "$malicious_archive" "$raw_name"; then
 		return 1
 	fi
-	if run_archive_verifier "$fixture_path" "$malicious_archive" >/dev/null 2>&1; then
-		fail "verifier accepted a raw control character in an archive name"
-		return 1
-	elif [ 99 -eq "$?" ]; then
-		return 1
-	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"contains an ASCII control character" \
+		"verifier accepted a raw control character in an archive name"
 }
 
 test_composer_subtree_canary_is_rejected() {
@@ -670,12 +739,11 @@ test_composer_subtree_canary_is_rejected() {
 	if ! assert_raw_archive_entry_nonempty "$malicious_archive" "$raw_name"; then
 		return 1
 	fi
-	if run_archive_verifier "$fixture_path" "$malicious_archive" >/dev/null 2>&1; then
-		fail "verifier accepted an unapproved vendor/composer file"
-		return 1
-	elif [ 99 -eq "$?" ]; then
-		return 1
-	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"path is outside the approved production manifest" \
+		"verifier accepted an unapproved vendor/composer file"
 }
 
 test_production_composer_package_is_rejected() {
@@ -719,12 +787,11 @@ test_production_composer_package_is_rejected() {
 			return 1
 			;;
 	esac
-	if run_archive_verifier "$fixture_path" "$malicious_archive" >/dev/null 2>&1; then
-		fail "verifier accepted a production Composer package"
-		return 1
-	elif [ 99 -eq "$?" ]; then
-		return 1
-	fi
+	expect_archive_verifier_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"Composer installed.json contains production packages or invalid metadata" \
+		"verifier accepted a production Composer package"
 }
 
 test_duplicate_central_directory_is_rejected() {
@@ -748,7 +815,7 @@ test_duplicate_central_directory_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted two valid central directories and EOCD records"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "earlier valid EOCD structure" "verifier accepted two valid central directories and EOCD records"
 }
 
 test_hidden_precentral_payload_is_rejected() {
@@ -772,7 +839,7 @@ test_hidden_precentral_payload_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted hidden bytes before the central directory"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "unaccounted bytes exist between local records and the central directory" "verifier accepted hidden bytes before the central directory"
 }
 
 test_eocd_comment_is_rejected() {
@@ -796,7 +863,7 @@ test_eocd_comment_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted a nonempty EOCD comment"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "EOCD comments are not allowed" "verifier accepted a nonempty EOCD comment"
 }
 
 test_archive_prefix_is_rejected() {
@@ -820,7 +887,7 @@ test_archive_prefix_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted bytes before the first local record"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "unaccounted bytes before local record" "verifier accepted bytes before the first local record"
 }
 
 test_data_descriptors_are_rejected() {
@@ -839,6 +906,9 @@ test_data_descriptors_are_rejected() {
 	if ! extract_archive_fixture "$archive" "$unpacked"; then
 		return 1
 	fi
+	if ! canonicalize_fixture_tree "$unpacked/$plugin_slug"; then
+		return 1
+	fi
 	if ! (
 		set -o pipefail
 		cd "$unpacked" || exit 1
@@ -853,7 +923,7 @@ test_data_descriptors_are_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted bit-3 data descriptors"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "uses unsupported data descriptors" "verifier accepted bit-3 data descriptors"
 }
 
 test_case_fold_collision_is_rejected() {
@@ -886,7 +956,7 @@ test_case_fold_collision_is_rejected() {
 	if ! assert_raw_archive_structure "$malicious_archive" case-fold; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted an ASCII case-fold path collision"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "case-folded entry collision" "verifier accepted an ASCII case-fold path collision"
 }
 
 test_non_ascii_archive_name_is_rejected() {
@@ -916,7 +986,7 @@ test_non_ascii_archive_name_is_rejected() {
 	if ! assert_raw_archive_entry_nonempty "$malicious_archive" "$raw_name"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted a non-ASCII archive name"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "contains a non-ASCII archive name" "verifier accepted a non-ASCII archive name"
 }
 
 test_world_writable_mode_is_rejected() {
@@ -941,7 +1011,7 @@ test_world_writable_mode_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted Unix mode 0777"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "does not have exact mode 0644" "verifier accepted Unix mode 0777"
 }
 
 test_non_unix_origin_is_rejected() {
@@ -966,7 +1036,7 @@ test_non_unix_origin_is_rejected() {
 	if ! assert_archive_integrity "$malicious_archive"; then
 		return 1
 	fi
-	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "verifier accepted a non-Unix archive origin"
+	expect_archive_verifier_rejection "$fixture_path" "$malicious_archive" "does not have Unix origin metadata" "verifier accepted a non-Unix archive origin"
 }
 
 test_overlapping_local_intervals_are_rejected() {
@@ -987,12 +1057,11 @@ test_overlapping_local_intervals_are_rejected() {
 	if ! assert_raw_archive_structure "$malicious_archive" overlap; then
 		return 1
 	fi
-	if run_manifest_validator "$fixture_path" "$malicious_archive" >/dev/null 2>&1; then
-		fail "raw manifest validator accepted overlapping local intervals"
-		return 1
-	elif [ 99 -eq "$?" ]; then
-		return 1
-	fi
+	expect_manifest_validator_rejection \
+		"$fixture_path" \
+		"$malicious_archive" \
+		"local record overlaps an earlier record" \
+		"raw manifest validator accepted overlapping local intervals"
 }
 
 test_invalid_epoch_removes_stale_outputs() {
