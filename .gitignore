@@ -1,6 +1,8 @@
 /build/
 /dist/
 /.phpunit.result.cache
+/phpunit.xml
+/phpcs.xml
 /.wp-env.json
 /node_modules/
 /vendor/

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+        env:
+          MYSQL_DATABASE: wordpress_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=root"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.0'
+          coverage: none
+          extensions: mysqli
+          tools: composer:2.10.2
+
+      - name: Install development dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Install WordPress test prerequisites
+        run: |
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends subversion
+          svn --version --quiet
+
+      - name: Install WordPress 7.1 test suite
+        run: bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1:3306 7.1 true
+
+      - name: Run integration tests
+        run: composer test
+
+      - name: Run coding standards
+        run: composer phpcs
+
+      - name: Test release tooling boundaries
+        run: bash bin/test-release-tools.sh
+
+      - name: Build production plugin
+        run: bash bin/build-plugin.sh
+
+      - name: Verify production archive
+        run: bash bin/verify-build.sh build/darven-who-published.1.1.0.zip
+
+      - name: Run WordPress Plugin Check
+        uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1
+        with:
+          build-dir: build/plugin/darven-who-published
+          slug: darven-who-published
+          # Optional PR comments need write access; retain the read-only token
+          # and keep file annotations plus the Plugin Check artifact instead.
+          repo-token: ''
+
+      # plugin-check-action v1 only special-cases `trunk`; numeric versions use
+      # wp-env's current stable core. Fail closed unless that runtime is 7.1.
+      - name: Assert Plugin Check WordPress version
+        run: |
+          plugin_check_wp_version=$(wp-env run cli wp core version)
+          case "$plugin_check_wp_version" in
+            7.1|7.1.*) ;;
+            *)
+              echo "Plugin Check ran on WordPress $plugin_check_wp_version; expected 7.1.x." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload production archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: darven-who-published-1.1.0
+          path: build/darven-who-published.1.1.0.zip
+          if-no-files-found: error

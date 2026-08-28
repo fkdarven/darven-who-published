@@ -1,83 +1,75 @@
 <?php
-
 /**
- * Adds a metabox in the post editor to display the original author.
+ * Displays publisher identity in the post editor.
  *
  * @package Darven\WhoPublished
  * @subpackage Admin
- * @author Darven
- * @since 1.0.0
- * @version 1.0.0
  */
 
 namespace Darven\WhoPublished\Admin;
 
+use Darven\WhoPublished\Publisher\PublisherRetriever;
+use WP_Post;
+
 if ( ! defined( 'ABSPATH' ) ) {
+
 	exit;
 }
 
-use Darven\WhoPublished\Publisher\PublisherRetriever;
-
 /**
- * Class MetaBoxDisplay
- *
- * Displays original author information with visual badge in post/page edit screens.
- *
- * @package Darven\WhoPublished
- * @subpackage Admin
- * @since 1.0.0
- * @version 1.0.0
+ * Registers and renders the publisher metabox for posts and pages.
  */
 class MetaBoxDisplay {
 
 	/**
-	 * Registers the metabox.
+	 * Registers the editor metabox.
 	 *
 	 * @return void
-	 * @since 1.0.0
 	 */
 	public function register(): void {
-		add_action( 'add_meta_boxes', function () {
-			add_meta_box(
-				'darven-who-published-meta',
-				__( 'Who Published', 'darven-who-published' ),
-				[ $this, 'render' ],
-				[ 'post', 'page' ],
-				'side',
-				'core'
-			);
-		} );
+		add_action( 'add_meta_boxes', array( $this, 'add_meta_boxes' ) );
 	}
 
 	/**
-	 * Renders the content of the metabox.
-	 *
-	 * @param \WP_Post $post The current post object.
+	 * Adds the metabox for each supported post type.
 	 *
 	 * @return void
-	 * @since 1.0.0
 	 */
-	public function render( \WP_Post $post ): void {
-		$retriever    = new PublisherRetriever();
-		$publisher_id = $retriever->get_publisher( $post );
-		if ( ! $publisher_id ) {
-			echo '<p>' . esc_html__( 'No original author found.', 'darven-who-published' ) . '</p>';
-
-			return;
+	public function add_meta_boxes(): void {
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			add_meta_box(
+				'darven-who-published-meta',
+				__( 'Published by', 'darven-who-published' ),
+				array( $this, 'render' ),
+				$post_type,
+				'side',
+				'core'
+			);
 		}
+	}
 
-		$is_guessed = get_post_meta( $post->ID, DARVEN_WHO_PUBLISHED_WAS_GUESSED, true );
-		$user       = get_userdata( $publisher_id );
-		if ( ! $user ) {
-			echo '<p>&mdash;</p>';
+	/**
+	 * Renders publisher identity with an explicit safe HTML allowlist.
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	public function render( WP_Post $post ): void {
+		$identity = ( new PublisherRetriever() )->get_publisher( $post );
+		$allowed  = array(
+			'a'    => array(
+				'href'       => true,
+				'class'      => true,
+				'title'      => true,
+				'aria-label' => true,
+			),
+			'span' => array(
+				'class'      => true,
+				'title'      => true,
+				'aria-label' => true,
+			),
+		);
 
-			return;
-		}
-
-		$label = $is_guessed
-			? '<span class="darven-badge darven-badge-guessed" title="' . esc_attr__( 'Based on revision or last edit.', 'darven-who-published' ) . '">' . esc_html__( 'Probably ', 'darven-who-published' ) . esc_html( $user->display_name ) . '</span>'
-			: '<span class="darven-badge darven-badge-confirmed">' . esc_html( $user->display_name ) . '</span>';
-
-		echo '<p>' . esc_html( $label ) . '</p>';
+		printf( '<p>%s</p>', wp_kses( PublisherBadge::render( $identity ), $allowed ) );
 	}
 }

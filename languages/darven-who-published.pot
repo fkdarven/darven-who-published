@@ -1,103 +1,107 @@
+# Copyright (C) 2026 Darven
+# This file is distributed under the GPLv2 or later.
 msgid ""
 msgstr ""
 "Project-Id-Version: Who Published – Post Publisher Column 1.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/fkdarven/darven-who-published/issues\n"
-"Language: pt_BR\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "POT-Creation-Date: 2026-08-26T20:31:28+00:00\n"
-"PO-Revision-Date: 2026-08-26T20:31:28+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: darven-who-published\n"
 
 #. Plugin Name of the plugin
 #: darven-who-published.php
 msgid "Who Published – Post Publisher Column"
-msgstr "Quem Publicou – Coluna de Publicador da Postagem"
+msgstr ""
 
 #. Description of the plugin
 #: darven-who-published.php
 msgid "Shows who actually clicked Publish beside the credited post author."
-msgstr "Mostra quem realmente clicou em Publicar ao lado do autor creditado da postagem."
+msgstr ""
 
 #. Author of the plugin
 #: darven-who-published.php
 msgid "Darven"
-msgstr "Darven"
+msgstr ""
 
 #: src/Admin/ColumnManager.php:47
 #: src/Admin/MetaBoxDisplay.php:42
 msgid "Published by"
-msgstr "Publicado por"
+msgstr ""
 
 #: src/Admin/ColumnManager.php:72
 #: src/Admin/PublisherBadge.php:31
 #: src/Admin/PublisherBadge.php:36
 msgid "Unknown"
-msgstr "Desconhecido"
+msgstr ""
 
 #: src/Admin/ColumnManager.php:96
 msgid "All publishers"
-msgstr "Todos os publicadores"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:42
 msgid "Confirmed publisher"
-msgstr "Publicador confirmado"
+msgstr ""
 
 #. translators: %s: estimated publisher display name.
 #: src/Admin/PublisherBadge.php:46
 #, php-format
 msgid "Estimated %s"
-msgstr "Estimado: %s"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:48
 msgid "Estimated publisher"
-msgstr "Publicador estimado"
+msgstr ""
 
 #. translators: %s: estimation evidence source.
 #: src/Admin/PublisherBadge.php:51
 #, php-format
 msgid "Estimated from %s."
-msgstr "Estimado a partir de %s."
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:79
 msgid "legacy Who Published data"
-msgstr "dados legados do Who Published"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:80
 msgid "the last edit"
-msgstr "a última edição"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:81
 msgid "the latest revision"
-msgstr "a revisão mais recente"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:82
 msgid "the credited post author"
-msgstr "o autor creditado da postagem"
+msgstr ""
 
 #: src/Admin/PublisherBadge.php:85
 msgid "available post data"
-msgstr "dados disponíveis da postagem"
+msgstr ""
 
 #: src/Admin/SettingsPage.php:66
 #: src/Admin/SettingsPage.php:67
 #: src/Admin/SettingsPage.php:87
 msgid "Who Published"
-msgstr "Quem Publicou"
+msgstr ""
 
 #: src/Admin/SettingsPage.php:81
 msgid "Sorry, you are not allowed to manage Who Published settings."
-msgstr "Desculpe, você não tem permissão para gerenciar as configurações do Quem Publicou."
+msgstr ""
 
 #: src/Admin/SettingsPage.php:94
 msgid "Estimate publishers for historical posts"
-msgstr "Estimar publicadores para posts históricos"
+msgstr ""
 
 #: src/Admin/SettingsPage.php:98
 msgid "WordPress cannot prove who published content created before plugin activation. Enabling this permits clearly marked estimates; disabling it hides estimates without deleting confirmed publisher data."
-msgstr "O WordPress não consegue provar quem publicou conteúdo criado antes da ativação do plugin. Ativar esta opção permite estimativas claramente identificadas; desativá-la oculta as estimativas sem excluir dados de publicadores confirmados."
+msgstr ""
 
 #: src/Admin/SettingsPage.php:114
 msgid "Settings"
-msgstr "Configurações"
+msgstr ""
